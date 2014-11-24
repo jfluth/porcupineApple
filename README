@@ -1,0 +1,23 @@
+Directory Structure
+./constraints/
+    Paul's initial constraint file (just a copy of out proj_2 file)
+    
+
+    
+./hdl/
+source files for the verilog modules
+
++---xbee/
+    Andrei's stuff (perhaps he'll add a description) :)
+    
++----video_subsystem
+    Paul's source   
+    +---*_ROM/
+        the files created by vivado IP creator for the various ROMS used 
+        you'll need to include the .xci files from these folders in your project
+    +---pix_clk_25MHz/
+        pixel clock for DTG
+    
+./simulation/
+module test benches
+        
