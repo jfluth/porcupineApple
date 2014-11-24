@@ -8,7 +8,18 @@ Directory Structure
 source files for the verilog modules
 
 +---xbee/
-    Andrei's stuff (perhaps he'll add a description) :)
+    Andrei's stuff
+	+---baudGen.v
+		Baud Rate generator module, used by both receiver and transmitter
+	+---xmitter.v
+		transmitter module for XBee
+	+---receiver.v
+		receiver module for XBee
+	+---xbee.v
+		combines receiver and transmitter (might have fifos in the future as well)
+	+---nexys4fpga.v
+		top module, currently instantiating only external peripherals (7-seg_display, debounce),
+		and two xbees for xbee testing.
     
 +----video_subsystem
     Paul's source   
