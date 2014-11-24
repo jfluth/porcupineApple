@@ -655,17 +655,53 @@ next_loc:		LOAD		s0,		LocX				; Dig[3:2] gets X-coordinate
 ; === This version reads the pushbuttons, calculates the new Motor Control   ===
 ; === register value and then writes MotCtl so Rojobot knows what to do      ===  
 ; ==============================================================================
-turn:			LOAD 	s0, 	DONE_PLACING
+TURN:			LOAD 	s0, 	DONE_PLACING
 				COMPARE s0, 01
-				JUMP 	NZ, CONTINUE
+				JUMP 	NZ, READBTN
 				RETURN
 
-				CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
+READBTN:		CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
 				;CALL	btn2mot						; and calculate new MotCtl - returned in s1
 				;OUTPUT	s1,		PA_MOTCTL_IN		; tell Rojobot what to do
 				;RETURN																
 
-				COMPARE s0, 	
+UP:				LOAD 	s0, 	LOCY
+				COMPARE s0, 	00
+				JUMP 	Z, 		ERROR
+				SUB 	s0, 	01
+				RETURN
+
+DOWN:			LOAD 	s0, 	LOCY
+				COMPARE s0, 	09
+				JUMP 	Z, 		ERROR
+				ADD 	s0, 	01
+				RETURN
+
+LEFT:			LOAD 	s0, 	LOCX
+				COMPARE s0, 	00
+				JUMP 	Z, 		ERROR
+				SUB 	s0, 	01
+				RETURN
+
+RIGHT:			LOAD 	s0, 	LOCX
+				COMPARE s0, 	00
+				JUMP 	Z, 		ERROR
+				ADD 	s0, 	01
+				RETURN
+
+SEND:			LOAD 	s0, 	LOCX
+				AND 	s0, 	0F
+				LOAD 	s1, 	LOCY
+				AND 	s1, 	0F
+				SL0 	s0
+				SL0 	s0
+				SL0 	s0
+				SL0 	s0
+				OR 		s0, 	s1
+				;OUTPUT 	s0, 	TO THE PORT
+				RETURN
+
+ERROR:			RETURN
 
 				
 ;*************************
