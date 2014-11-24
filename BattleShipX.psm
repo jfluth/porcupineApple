@@ -626,22 +626,11 @@ nh_endcase:		STORE	s4,		SP_DIG7				; update the heading display digits
 ; === Uses LocX and LocY to get location.                                    ===  
 ; ==============================================================================
 next_loc:		LOAD		s0,		LocX				; Dig[3:2] gets X-coordinate
-				LOAD		Dig2,	s0					; Digit 2 gets lower nibble
-				AND		Dig2,	MSK_HEXDIGIT		;
-				SR0		s0							; Digit3 gets upper nibble
-				SR0		s0							; 
-				SR0		s0							; 
-				SR0		s0							;	
-				LOAD		Dig3,	s0					;
+				LOAD		Dig1,	s0					; Digit 2 gets lower nibble
 				
 				LOAD		s0,		LocY				; Dig[1:0] gets Y-coordinate
 				LOAD		Dig0,	s0					; Digit 0 gets lower nibble
-				AND		Dig0,	MSK_HEXDIGIT		; 
-				SR0		s0							; Digit 1 gets upper nibble
-				SR0		s0							;
-				SR0		s0							;
-				SR0		s0							;	
-				LOAD		Dig1,	s0					;
+	
 				RETURN					
 
 
@@ -663,7 +652,20 @@ TURN:			LOAD 	s0, 	DONE_PLACING
 READBTN:		CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
 				;CALL	btn2mot						; and calculate new MotCtl - returned in s1
 				;OUTPUT	s1,		PA_MOTCTL_IN		; tell Rojobot what to do
-				;RETURN																
+
+				COMPARE s0, 	BLANK
+				JUMP 	Z,		ERROR
+				COMPARE s0, 	UP_BTN
+				JUMP 	Z,		UP 	
+				COMPARE s0, 	DOWN_BTN
+				JUMP 	Z,		DOWN 
+				COMPARE s0, 	LEFT_BTN
+				JUMP 	Z,		LEFT 														
+				COMPARE s0, 	RIGHT_BTN
+				JUMP 	Z,		RIGHT 
+				COMPARE s0, 	ENTER_BTN
+				JUMP 	Z,		SEND 
+
 
 UP:				LOAD 	s0, 	LOCY
 				COMPARE s0, 	00
@@ -698,7 +700,37 @@ SEND:			LOAD 	s0, 	LOCX
 				SL0 	s0
 				SL0 	s0
 				OR 		s0, 	s1
-				;OUTPUT 	s0, 	TO THE PORT
+				;OUTPUT s0, 	TO THE PORT
+				RETURN
+
+RECEIVE: 		;LOAD 	s0, 	get sent message
+				LOAD 	s1, 	s0
+				AND 	s1, 	0F
+				LOAD 	s2, 	s0
+				AND 	s2, 	F0
+				SR0 	s2
+				SR0 	s2
+				SR0 	s2
+				SR0 	s2
+				COMPARE s0, 	HIT_CODE
+				JUMP 	Z, 		MARK_HIT
+				COMPARE s0, 	MISS_CODE
+				JUMP 	Z, 		MARK_MISS
+				COMPARE s0, 	LOSE_CODE
+				JUMP 	Z, 		MARK_LOSE
+				JUMP ERROR
+				; figure out what to do here 
+
+MARK_HIT:		LOAD 	s0, 	HIT 
+				JUMP 	SEND_MARK
+
+MARK_MISS:		LOAD 	s0, 	MISS 
+				JUMP 	SEND_MARK
+
+MARK_LOSE: 		LOAD 	s0, 	LOSE 
+				JUMP 	SEND_MARK
+
+SEND_MARK: 		OUTPUT s0, ; the right port
 				RETURN
 
 ERROR:			RETURN
