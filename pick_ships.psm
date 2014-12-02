@@ -11,6 +11,7 @@
 ; 01-Dec-14    AN    Added portions of collision detection algorithm, changed some portions of addresses to interface with RAM
 ; 02-Dec-14    AN    Finished State 2, updated incorrect labelling for transitioning from state 1 into state 2 (was called state 3)
 ; 02-Dec-14    AN    Finished State 3 and 4, code is assembling, must be tested
+; 02-Dec-14    JF    Added code for turn functionality.
 ;
 ; Description:
 ; ============
@@ -378,7 +379,7 @@ main:			CALL	init_btnluptbl				; initialize button to MotCtl lookup table
 main_L0:		FETCH	s6,		SP_SEM				;		while (SP_SEMA == 0)  {}   // loop until isr updates rojobot registers
 				COMPARE	s6,		00				;
 				JUMP	Z,		main_L0				;
-				;CALL	next_loc					;			Dig[3:2] = nex LocX; Dig[1:0] = next LocY
+				;CALL	DISP_X_Y					;			Display the X and Y coordinates on DIG[0] & DIG[1] -- ADDED BY JF
 				CALL	next_mvmt					;			Dig[4] = next movement
 				;CALL	next_hdg					;			Dig[7:4] = next heading
 													;		}
@@ -1082,59 +1083,57 @@ READBTN:		CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
 
 				COMPARE s0, 	BLANK
 				JUMP 	Z,		ERROR
-				COMPARE s0, 	UP_BTN
+				COMPARE s0, 	MSK_BTN_UP
 				JUMP 	Z,		UP 	
-				COMPARE s0, 	DOWN_BTN
+				COMPARE s0, 	MSK_BTN_DOWN
 				JUMP 	Z,		DOWN 
-				COMPARE s0, 	LEFT_BTN
+				COMPARE s0, 	MSK_BTN_LEFT
 				JUMP 	Z,		LEFT 														
-				COMPARE s0, 	RIGHT_BTN
+				COMPARE s0, 	MSK_BTN_RIGHT
 				JUMP 	Z,		RIGHT 
-				COMPARE s0, 	ENTER_BTN
-				JUMP 	Z,		SEND 
+				COMPARE s0, 	MSK_BTN_CENTER
+				JUMP 	Z,		SEND
+				JUMP 	ERROR 
 
 
-UP:				LOAD 	s0, 	LOCY
-				COMPARE s0, 	00
+UP:				LOAD 	s0, 	Cursor
+				COMPARE s0, 	MIN_Y
 				JUMP 	Z, 		ERROR
-				SUB 	s0, 	01
+				SUB 	s0, 	INC_Y
+				STORE 	s0,     Cursor
 				RETURN
 
-DOWN:			LOAD 	s0, 	LOCY
-				COMPARE s0, 	09
+DOWN:			LOAD 	s0, 	Cursor
+				COMPARE s0, 	MAX_Y
 				JUMP 	Z, 		ERROR
-				ADD 	s0, 	01
+				ADD 	s0, 	INC_Y
+				STORE 	s0,     Cursor
 				RETURN
 
-LEFT:			LOAD 	s0, 	LOCX
-				COMPARE s0, 	00
+LEFT:			LOAD 	s0, 	Cursor
+				COMPARE s0, 	MIN_X
 				JUMP 	Z, 		ERROR
-				SUB 	s0, 	01
+				SUB 	s0, 	INC_X
+				STORE 	s0,     Cursor
 				RETURN
 
-RIGHT:			LOAD 	s0, 	LOCX
-				COMPARE s0, 	00
+RIGHT:			LOAD 	s0, 	Cursor
+				COMPARE s0, 	MAX_X
 				JUMP 	Z, 		ERROR
-				ADD 	s0, 	01
+				ADD 	s0, 	INC_X
+				STORE 	s0,     Cursor
 				RETURN
 
-SEND:			LOAD 	s0, 	LOCX
-				AND 	s0, 	0F
-				LOAD 	s1, 	LOCY
-				AND 	s1, 	0F
-				SL0 	s0
-				SL0 	s0
-				SL0 	s0
-				SL0 	s0
-				OR 		s0, 	s1
+SEND:			LOAD 	s0, 	Cursor
 				;OUTPUT s0, 	TO THE PORT
+				STORE 	s0,     Cursor
 				RETURN
 
 RECEIVE: 		;LOAD 	s0, 	get sent message
 				LOAD 	s1, 	s0
-				AND 	s1, 	0F
+				AND 	s1, 	Y_COOR
 				LOAD 	s2, 	s0
-				AND 	s2, 	F0
+				AND 	s2, 	X_COOR
 				SR0 	s2
 				SR0 	s2
 				SR0 	s2
