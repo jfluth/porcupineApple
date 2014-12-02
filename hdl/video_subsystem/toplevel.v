@@ -70,8 +70,8 @@ module paint_screen_test (
 	wire			vidOn;	
 	wire	[9:0]	pixCol;
 	wire	[9:0]	pixRow;
-	wire	[11:0]  iconData;
-	wire	[19:0]  screenAddress;
+	//wire	[11:0]  iconData;
+	//wire	[19:0]  screenAddress;
 	
 	// System Level connections
 	wire			sysreset;
@@ -138,14 +138,14 @@ module paint_screen_test (
 	pix_clk_25MHz	pixClock25 (
 		.clk_in1		(clk),
 		.pix_clk_25MHz	(pixClock),
-		.reset         (sysreset)
+		.reset          (sysreset)
 	);
 	
 	
 	///////////////////////////////////////////////////////////////////////////	
 	// Instantiate DTG
 	///////////////////////////////////////////////////////////////////////////
-	dtg #(/* Keeping parameter Defaults */)
+	dtg #(/* Keeping parameter defaults */)
 	dtg (
 		.clock			(pixClock),
 		.rst			(sysreset),
@@ -153,8 +153,12 @@ module paint_screen_test (
 		.vert_sync		(Vsync),
 		.video_on		(vidOn),
 		.pixel_row		(pixRow), 
-		.pixel_column	(pixCol));
+		.pixel_column	(pixCol)
+	);
 
+	///////////////////////////////////////////////////////////////////////////	
+	// Instantiate video subsystem
+	///////////////////////////////////////////////////////////////////////////
 
 	paint_screen #(/* No parameters in this module */)
 	paintScreen (
@@ -163,28 +167,13 @@ module paint_screen_test (
 		.pixel_x		(pixCol),
 		.pixel_y		(pixRow),
 		.vid_on			(vidOn),
-		.tile_data		(4'b0),
-		.icon_data		(iconData),
-		.tile_address	(),
-		.icon_address	(),
-		.screen_address	(screenAddress),
-		.ROM_select		(),
+		//.tile_data		(4'b0),
+		//.icon_data		(iconData),
+		//.tile_address	(),
+		//.icon_address	(),
+		//.screen_address	(screenAddress),
+		//.ROM_select		(),
 		.screen_color	({vgaRed,vgaGreen,vgaBlue})
-	);
-
-	logo_ROM #(/* Keeping default parameters in this module */)
-	logo_ROM  (
-		.clka  (clk),
-		.ena   (1'b1),		// always enabled
-		.addra	(screenAddress),
-		.douta	(iconData)
-	);
-
-	empty_tile_ROM #(/* Keeping default parameters in this module */)
-	empty_tile_ROM  (
-		.clka	(clk),
-		.addra	(screenAddress),
-		.douta	(iconData)
 	);
 	
 endmodule
