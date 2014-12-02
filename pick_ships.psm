@@ -1,14 +1,15 @@
 ; -----------------------------------------------------------------
 ; pick_ships.psm - PicoBlaze program for choosing where to place  your ships
 ;
-; Version:	1.1
+; Version:	1.2
 ; Author:	Andrew Northy
-; Date:		01-Dec-2014
+; Date:		02-Dec-2014
 ;
 ; Revision History
 ; ================
 ; 25-Nov-14    AN    Created the first version, used project 2 as a starting template. Transition States 0 and most of 1 are done
 ; 01-Dec-14    AN    Added portions of collision detection algorithm, changed some portions of addresses to interface with RAM
+; 02-Dec-14    AN    Finished State 2, updated incorrect labelling for transitioning from state 1 into state 2 (was called state 3)
 ;
 ; Description:
 ; ============
@@ -675,7 +676,7 @@ next_mvmt_s1_chk_right:
 next_mvmt_s1_chk_center:
 		LOAD	s0, valid_flag	; Load the valid flag into s0
 		COMPARE	s0,	VALID		; See if current selected location is valid
-		JUMP	Z,	next_mvmt_go_s3	; If it is valid, go to state 3
+		JUMP	Z,	next_mvmt_go_s2	; If it is valid, go to state 2
 		LOAD    s0, STATE1		; If selection is invalid, ignore command and remain in state 1
         STORE   s0, SP_STATE        ; else remain in state 1
         RETURN
@@ -697,25 +698,42 @@ next_mvmt_s1_chk_center:
 
 ; Pick Orientation state
 next_mvmt_s2:
-        FETCH   s0, SP_ORIENT       ; Read location we are trying to turn to
-        LOAD    s1, Botinf          ; Read Botinf to get current orientation (for later)
-        AND     s1, MSKORIENT       ; Mask out current Mvmt and unused bit
-        COMPARE s1, s0              ; See if current orientation != SP_ORIENT
-        JUMP    NZ, next_mvmt_s2_done; If we have not reached the orientation, stay in state 2
-        ; else, we have reached our intended orientation and need to determine the next state
-        FETCH   s0, SP_TURN         ; Get SP_TURN, increment it, and store it back
-        ADD     s0, 01
-        STORE   s0, SP_TURN
-        LOAD    s0, Sensor          ; Grab sensor values, see if there is a wall in front of us
-        AND     s0, MSKPROX         ; Mask to have just prox sensor data
-        COMPARE s0, PROX_END        ; Are we facing a wall?
-        JUMP    Z,  next_mvmt_go_s2 ; if so, don't bother trying to go forward, just make the next turn
-        JUMP    next_mvmt_go_s3     ; If there is no wall in front of us, go to state3
+		;Check button input to potentially change state
+		LOAD	s0, But_input		; Read button input
+		AND		s0, MSK_ALLBTNS		; Mask out just the buttons
+		COMPARE	s0, MSK_BTN_UP		; See if only the up button was pressed
+		JUMP	Z,	next_mvmt_s2_chk_up
+		COMPARE	s0, MSK_BTN_DOWN
+		JUMP	Z,	next_mvmt_s2_chk_down
+		COMPARE	s0, MSK_BTN_LEFT
+		JUMP	Z,	next_mvmt_s2_chk_left
+		COMPARE	s0, MSK_BTN_RIGHT
+		JUMP	Z,	next_mvmt_s2_chk_right
+		COMPARE	s0,	MSK_BTN_CENTER
+		JUMP	Z,	next_mvmt_s2_chk_center
+		
+next_mvmt_s2_chk_up:
+		LOAD	Orien,	NORTH	; Set Orientation to NORTH 
+        JUMP	next_mvmt_go_s2	; Remain in State 2, recalc collision detection
+
+next_mvmt_s2_chk_down:
+		LOAD	Orien,	SOUTH	; Set Orientation to SOUTH
+		JUMP	next_mvmt_go_s2	; Remain in State 2, recalc collision detection
         
-next_mvmt_s2_done:
-        LOAD    s0, STATE2
-        STORE   s0, SP_STATE
-        RETURN
+next_mvmt_s2_chk_left:
+		LOAD	Orien,	WEST	; Set Orientation to WEST
+		JUMP	next_mvmt_go_s2	; Remain in State 2, recalc collision detection
+        
+next_mvmt_s2_chk_right:
+		LOAD	Orien,	EAST	; Set Orientation to EAST
+		JUMP	next_mvmt_go_s2	; Remain in State 2, recalc collision detection
+        
+next_mvmt_s2_chk_center:
+		LOAD	s0, valid_flag	; Load the valid flag into s0
+		COMPARE	s0,	VALID		; See if current selected location is valid
+		JUMP	Z,	next_mvmt_go_s3	; If it is valid, go to state 3
+		JUMP	next_mvmt_go_s1		; If selection is invalid, go back to state 1 to allow user to re-pick anchor
+        
         
 ; Save to RAM state
 next_mvmt_s3:
@@ -775,35 +793,14 @@ next_mvmt_go_s1:
         STORE   s0, SP_STATE
         RETURN
 
-next_mvmt_go_s2:
-; We are transitioning into state 2, so we need to determine where we are turning to 
-; based upon the turn_var and store it into SP_ORIENT
-        LOAD    s0, STATE2
-        STORE   s0, SP_STATE    ; State is now state 2
-        LOAD    s1, Botinf          ; Read Botinf to get current orientation (for later)
-        AND     s1, MSKORIENT       ; Mask out current Mvmt and unused bit
-        
-        FETCH   s0, SP_TURN         ; 
-        AND     s0, MSKLEFTRIGHT    ; Determine if we are turning left or right
-        COMPARE s0, TURNLEFT        ; 
-        JUMP    Z,  go_s2_left      ; if left-right bit says left, go to the turn left calculation
-        FETCH   s0, SP_TURN         ; else calculate turn right... get turn_var to add to orient
-        ADD     s1, s0              ; Add turn_var to current orientation
-        AND     s1, MSKORIENT       ; Mask out any over-flow bits
-        STORE   s1, SP_ORIENT       ; SP_ORIENT = cur_orient + turn_var, max 3 bits
-        RETURN
-go_s2_left:
-        FETCH   s0, SP_TURN         ; else calculate turn right... get turn_var to add to orient
-        ADD     s1, 08              ; Adding 8 to current orientation prior to subtracting (avoid negative number)
-        SUB     s1, s0              ; subtract SP_TURN from current orientation
-        AND     s1, MSKORIENT       ; Mask out bit3 if it is still there after subtraction
-        STORE   s1, SP_ORIENT       ; SP_ORIENT = cur_orient - turn_var, max 3 bits
-        RETURN
+
            
-next_mvmt_go_s3:
-; We are transitioning into state 3, so we need to check the ship length values
-		LOAD    s0, STATE3
-        STORE   s0, SP_STATE    ; State is now state 3
+next_mvmt_go_s2:
+; We are transitioning into state 2, so we need to check the ship length values
+		LOAD    s0, STATE2
+        STORE   s0, SP_STATE    ; State is now state 2
+		
+collision_detection:
 ; COLLISION DETECTION FOR WHOLE LENGTH OF THE SHIP
 ; First check and make sure ship will be within the bounds of the game
 		LOAD	s1,	Ship_info	; get ship info reg to use later
@@ -811,14 +808,14 @@ next_mvmt_go_s3:
 		
 		LOAD	s0, Orien	; get ship orientation
 		COMPARE	s0, NORTH	; See if we are pointing North
-		JUMP	Z,	next_mvmt_go_s3_n
+		JUMP	Z,	next_mvmt_go_s2_n
 		COMPARE	s0,	EAST	; See if we are pointing East
-		JUMP	Z,	next_mvmt_go_s3_e
+		JUMP	Z,	next_mvmt_go_s2_e
 		COMPARE	s0, SOUTH	; See if we are pointing South
-		JUMP	Z,	next_mvmt_go_s3_s
-		JUMP	next_mvmt_go_s3_w	; We must be pointing West
+		JUMP	Z,	next_mvmt_go_s2_s
+		JUMP	next_mvmt_go_s2_w	; We must be pointing West
 		
-next_mvmt_go_s3_n:
+next_mvmt_go_s2_n:
 		; receive length in LSB..... must compare by subtracting with Y's value to ensure it fits in game board bounds
 		LOAD	s0,	Cursor		; Get Y value into s0, going to subtract length (s1) from it (go north)
 		AND		s0,	Y_COOR
@@ -829,25 +826,25 @@ next_mvmt_go_s3_n:
 		LOAD	s0,	Cursor	; s0 becomes temp_cursor
 		OUTPUT	s0, PA_SHIP_CHECK_0
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_Y	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_1
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_Y	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_2
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_Y	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_3
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_Y	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_4
-		JUMP	next_mvmt_go_s3_done	; max length is 5, so don't need to check anymore
+		JUMP	next_mvmt_go_s2_done	; max length is 5, so don't need to check anymore
 		
 
-next_mvmt_go_s3_e:
+next_mvmt_go_s2_e:
 		LOAD	s0,	Cursor		; Get X value into s0, going to add length (s1) to it (go east)
 		AND		s0,	X_COOR
 		SR0		s0				; Shift right four times to get out of upper nibble	
@@ -865,26 +862,26 @@ next_mvmt_go_s3_e:
 		LOAD	s0,	Cursor	; s0 becomes temp_cursor
 		OUTPUT	s0, PA_SHIP_CHECK_0
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_X	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_1
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_X	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_2
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_X	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_3
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_X	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_4
-		JUMP	next_mvmt_go_s3_done	; max length is 5, so don't need to check anymore		
+		JUMP	next_mvmt_go_s2_done	; max length is 5, so don't need to check anymore		
 		
 		
 
-next_mvmt_go_s3_s:
+next_mvmt_go_s2_s:
 		LOAD	s0,	Cursor		; Get Y value into s0, going to add length (s1) to it (go south)
 		AND		s0,	Y_COOR
 		ADD		s0, s1			; y_coor = y_coor + length
@@ -898,25 +895,25 @@ next_mvmt_go_s3_s:
 		LOAD	s0,	Cursor	; s0 becomes temp_cursor
 		OUTPUT	s0, PA_SHIP_CHECK_0
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_Y	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_1
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_Y	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_2
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_Y	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_3
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_Y	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_4
-		JUMP	next_mvmt_go_s3_done	; max length is 5, so don't need to check anymore
+		JUMP	next_mvmt_go_s2_done	; max length is 5, so don't need to check anymore
 		
 
-next_mvmt_go_s3_w:	
+next_mvmt_go_s2_w:	
 		LOAD	s0,	Cursor		; Get X value into s0, going to subtract length (s1) from it (go west)
 		AND		s0,	X_COOR
 		SR0		s0				; Shift right four times to get out of upper nibble	
@@ -930,33 +927,31 @@ next_mvmt_go_s3_w:
 		LOAD	s0,	Cursor	; s0 becomes temp_cursor
 		OUTPUT	s0, PA_SHIP_CHECK_0
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_X	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_1
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_X	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_2
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_X	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_3
 		SUB		s1, 1		; decrement temp_ship_length
-		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		JUMP	Z,	next_mvmt_go_s2_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_X	; Move temp_cursor one position
 		OUTPUT	s0, PA_SHIP_CHECK_4
-		JUMP	next_mvmt_go_s3_done	; max length is 5, so don't need to check anymore
+		JUMP	next_mvmt_go_s2_done	; max length is 5, so don't need to check anymore
 		
 		
-		;get ship length
+next_mvmt_go_s2_done:
+		RETURN	
 
-
-        ;LOAD    s0, LocX            ; Grab current LocX value
-        ;STORE   s0, SP_OLDX         ; Store it into SP_OLDX
-        ;LOAD    s0, LocY            ; Grab current LocY value
-        ;STORE   s0, SP_OLDY         ; Store it into SP_OLDY
-next_mvmt_go_s3_done:
-				RETURN					
+next_mvmt_go_s3:
+		LOAD    s0, STATE3
+        STORE   s0, SP_STATE
+        RETURN		
 
 next_mvmt_go_s4:
         LOAD    s0, STATE4
