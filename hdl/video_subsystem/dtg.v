@@ -8,6 +8,7 @@
 //	 ----------------
 //	 02-Feb-06		JDL	Added video_on output; simplified counter logic
 //	 25-Oct-12		Modified for kcpsm6 and Nexys3
+//   01-Dec-14		PWL modified for final project
 //
 //	Description:
 //	------------
@@ -16,7 +17,7 @@
 //	
 //	 Inputs:
 //			clock           - 25MHz Clock
-//			rst             - Active-high synchronous reset
+//			rst             - Active-low synchronous reset
 //	 Outputs:
 //			horiz_sync_out	- Horizontal sync signal to display
 //			vert_sync_out	- Vertical sync signal to display
@@ -33,10 +34,9 @@ module dtg(
 );
 
 // Timing parameters (for 25MHz pixel clock and 640 x 480 display)
-// We are only using 512 of the 640 columns so change HORIZ_PIXELS
-// to get rid of the screen duplication
+
 parameter
-		HORIZ_PIXELS = 512,  HCNT_MAX  = 799, HCNT_END = 699, 		
+		HORIZ_PIXELS = 640,  HCNT_MAX  = 799, HCNT_END = 699, 		
 		HSYNC_START  = 659,  HSYNC_END = 755,
 
 		VERT_PIXELS  = 480,  VCNT_MAX  = 524,
