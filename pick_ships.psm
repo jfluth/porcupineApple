@@ -1,13 +1,14 @@
 ; -----------------------------------------------------------------
 ; pick_ships.psm - PicoBlaze program for choosing where to place  your ships
 ;
-; Version:	1.0
+; Version:	1.1
 ; Author:	Andrew Northy
-; Date:		25-Nov-2014
+; Date:		01-Dec-2014
 ;
 ; Revision History
 ; ================
 ; 25-Nov-14    AN    Created the first version, used project 2 as a starting template. Transition States 0 and most of 1 are done
+; 01-Dec-14    AN    Added portions of collision detection algorithm, changed some portions of addresses to interface with RAM
 ;
 ; Description:
 ; ============
@@ -26,7 +27,7 @@
 ; === and keep their default names         ===
 ; ============================================
 NAMEREG		sF,		Cursor			; Current location of cursor, MSB are X, LSB are Y
-NAMEREG		sE,		Orien			; Current orientation. Only using first two bits, could add to this if needed
+NAMEREG		sE,		Orien			; Current orientation. Only using first four bits, could add to this if needed
 NAMEREG		sD,		Ship_info		; MSB are ship_count, LSB are ship_length
 									; 5 ships to be placed, of varying length
 										; 5, 4, 3, 3, 2
@@ -60,9 +61,9 @@ CONSTANT	PA_RSVD,		08		; (o) *RESERVED* port address
 
 ; Interface registers
 CONSTANT	PA_CONN_EST,	09		; (i) Connect has been established
-CONSTANT	PA_OUTPUT_RAM,	0A		; (o) Read/Write address request to block RAM
-CONSTANT	PA_WRITE_EN		0B		; (o) Write enable bit to block RAM
-CONSTANT	PA_INPUT_RAM,	0C		; (i) Requested data from RAM returned back
+CONSTANT	PA_CURSOR_CHECK,0A		; (o) Read/Write address request to block RAM
+CONSTANT	PA_WRITE_EN,	0B		; (o) Write enable bit to block RAM
+CONSTANT	PA_VALID_FLAG,	0C		; (i) Requested data from RAM returned back, position is valid or not
 CONSTANT	PA_PLACE_DONE,	0D		; (o) Ship placement completed signal
 ;CONSTANT	PA_SENSORS,		0E		; (i) Sensor register
 ;CONSTANT	PA_LMDIST,		0F		; (i) Rojobot left motor distance register
@@ -80,11 +81,11 @@ CONSTANT	PA_DP0704,		17		; (o) decimal points 7:4 port address
 CONSTANT	PA_RSVD_ALT,	18		; (o) *RESERVED* alternate port address
 
 ; Extended Rojobot interface registers.  These are alternate Port addresses
-CONSTANT	PA_MOTCTL_IN_ALT,	19	; (o) Rojobot motor control output from system
-CONSTANT	PA_LOCX_ALT,		1A	; (i) X coordinate of rojobot location
-CONSTANT	PA_LOCY_ALT,		1B	; (i))Y coordinate of rojobot location
-CONSTANT	PA_BOTINFO_ALT,		1C	; (i) Rojobot info register
-CONSTANT	PA_SENSORS_ALT,		1D	; (i) Sensor register
+CONSTANT	PA_SHIP_CHECK_0,	19	; (o) Request to RAM to verify position is valid or not
+CONSTANT	PA_SHIP_CHECK_1,	1A	; (o) Request to RAM to verify position is valid or not
+CONSTANT	PA_SHIP_CHECK_2,	1B	; (o))Request to RAM to verify position is valid or not
+CONSTANT	PA_SHIP_CHECK_3,	1C	; (o) Request to RAM to verify position is valid or not
+CONSTANT	PA_SHIP_CHECK_4,	1D	; (o) Request to RAM to verify position is valid or not
 CONSTANT	PA_LMDIST_ALT,		1E	; (i) Rojobot left motor distance register
 CONSTANT	PA_RMDIST_ALT,		1F	; (i) Rojobot right motor distance register
 
@@ -94,10 +95,10 @@ CONSTANT	PA_RMDIST_ALT,		1F	; (i) Rojobot right motor distance register
 ; =====================================
 CONSTANT	CURSOR_INIT,	44
 
-CONSTANT	NORTH,	00
-CONSTANT	EAST,	01
-CONSTANT	SOUTH,	02
-CONSTANT	WEST,	03
+CONSTANT	NORTH,	01
+CONSTANT	EAST,	02
+CONSTANT	SOUTH,	04
+CONSTANT	WEST,	08
 
 ; Use masks below instead (MSK_BTN_UP, MSK_BTN_RIGHT, etc)
 ;CONSTANT	UP,		01
@@ -105,6 +106,9 @@ CONSTANT	WEST,	03
 ;CONSTANT	DOWN,	03
 ;CONSTANT	LEFT,	04
 ;CONSTANT	SELECT,	05
+
+CONSTANT	VALID,	01
+CONSTANT	INVALID,00
 
 CONSTANT	X_COOR,	F0
 CONSTANT	Y_COOR,	0F
@@ -126,6 +130,8 @@ CONSTANT	STATE_4,	04
 CONSTANT	MSK_CONN_EST, 80
 CONSTANT	MSK_SHIPCNT,	F0
 CONSTANT	MSK_SHIPLNG,	0F
+
+;CONSTANT	MSK
 
 	
 ;  bit masks for pushbuttons and switches for seven segment emulator
@@ -347,7 +353,7 @@ main:			CALL	init_btnluptbl				; initialize button to MotCtl lookup table
 				LOAD	s1,		00					; clear the semaphore
 				STORE	s1,		SP_SEM				;
 				LOAD	s1,		00					; turn off decimal points 3-0.  Decimal point 0 (rightmost
-				STORE	s1,		SP_OLDDP			; and save the value	
+				;STORE	s1,		SP_OLDDP			; and save the value	
 				LOAD 	s1,		STATE0          	; Start in state 0
 				STORE	s1,		SP_STATE
 				LOAD 	Cursor,	CURSOR_INIT         ; Initialize Cursor variable to center of the screen
@@ -568,9 +574,9 @@ mvmt2cc:		LOAD	s2,		SP_MVMTBASE			; s2 gets base of movment conversion table
 				RETURN															
 
 				
-;##############################################
-; This function was changed for Project 2 #####	
-;##############################################		
+;###############################################
+; This function was changed for Battleship #####	
+;###############################################		
 			
 ; ========================================================================
 ; === next_mvmt() - Determine if we stay in or transition out of the   ===
@@ -612,7 +618,7 @@ next_mvmt_s0:
 next_mvmt_s1:
         LOAD    s0, Ship_info          ; Read Ship Info to get ship count
         AND     s0, MSK_SHIPCNT      ; Mask to have just ship count
-        COMPARE s0, 0     ; See if we are done
+        ;COMPARE s0, 0     ; See if we are done	; This instruction is not needed, Z flag gets set in the AND operation if the result is Zero.
         JUMP    Z,	next_mvmt_go_s4  ; If have no ships left, transition to state 4
 		
 		;Check button input to potentially change state
@@ -667,13 +673,20 @@ next_mvmt_s1_chk_right:
 		JUMP	next_mvmt_go_s1	; Read new location value and stay in state 1
 		
 next_mvmt_s1_chk_center:
+		LOAD	s0, valid_flag	; Load the valid flag into s0
+		COMPARE	s0,	VALID		; See if current selected location is valid
+		JUMP	Z,	next_mvmt_go_s3	; If it is valid, go to state 3
+		LOAD    s0, STATE1		; If selection is invalid, ignore command and remain in state 1
+        STORE   s0, SP_STATE        ; else remain in state 1
+        RETURN
+		
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-		;; TODO: Implement this function and state 2+3:
+		;; TODO: Implement state 2+3:
 
 		;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -754,6 +767,9 @@ next_mvmt_go_s1:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		; Check and see if current location within RAM is valid or not
+		LOAD	s1,	Cursor
+		OUTPUT	s1, PA_CURSOR_CHECK
 
         LOAD    s0, STATE1
         STORE   s0, SP_STATE
@@ -785,13 +801,161 @@ go_s2_left:
         RETURN
            
 next_mvmt_go_s3:
-; We are transitioning into state 3, so we need to save the current location values
-        LOAD    s0, STATE3
+; We are transitioning into state 3, so we need to check the ship length values
+		LOAD    s0, STATE3
         STORE   s0, SP_STATE    ; State is now state 3
-        LOAD    s0, LocX            ; Grab current LocX value
-        STORE   s0, SP_OLDX         ; Store it into SP_OLDX
-        LOAD    s0, LocY            ; Grab current LocY value
-        STORE   s0, SP_OLDY         ; Store it into SP_OLDY
+; COLLISION DETECTION FOR WHOLE LENGTH OF THE SHIP
+; First check and make sure ship will be within the bounds of the game
+		LOAD	s1,	Ship_info	; get ship info reg to use later
+		AND		s1,	MSK_SHIPLNG	; Mask to get just ship length
+		
+		LOAD	s0, Orien	; get ship orientation
+		COMPARE	s0, NORTH	; See if we are pointing North
+		JUMP	Z,	next_mvmt_go_s3_n
+		COMPARE	s0,	EAST	; See if we are pointing East
+		JUMP	Z,	next_mvmt_go_s3_e
+		COMPARE	s0, SOUTH	; See if we are pointing South
+		JUMP	Z,	next_mvmt_go_s3_s
+		JUMP	next_mvmt_go_s3_w	; We must be pointing West
+		
+next_mvmt_go_s3_n:
+		; receive length in LSB..... must compare by subtracting with Y's value to ensure it fits in game board bounds
+		LOAD	s0,	Cursor		; Get Y value into s0, going to subtract length (s1) from it (go north)
+		AND		s0,	Y_COOR
+		SUB		s0, s1			; y_coor = y_coor - length
+		JUMP	C,	invalid_flag; Carry flag, when set, indicates an underflow (borrow) occurred
+		;s1 still contains Ship_Length
+		
+		LOAD	s0,	Cursor	; s0 becomes temp_cursor
+		OUTPUT	s0, PA_SHIP_CHECK_0
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		SUB		s0, INC_Y	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_1
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		SUB		s0, INC_Y	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_2
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		SUB		s0, INC_Y	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_3
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		SUB		s0, INC_Y	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_4
+		JUMP	next_mvmt_go_s3_done	; max length is 5, so don't need to check anymore
+		
+
+next_mvmt_go_s3_e:
+		LOAD	s0,	Cursor		; Get X value into s0, going to add length (s1) to it (go east)
+		AND		s0,	X_COOR
+		SR0		s0				; Shift right four times to get out of upper nibble	
+		SR0		s0
+		SR0		s0
+		SR0		s0
+		ADD		s0, s1			; x_coor = x_coor + length
+		LOAD	s1,	MAX_X
+		COMPARE	s1,	s0			; check if MAX_X < (X_coor + length)
+		JUMP	C,	invalid_flag; CARRY is set If sX < sY
+		;s1 no longer contains Ship_Length, reload it
+		LOAD	s1,	Ship_info	; get ship info reg to use later
+		AND		s1,	MSK_SHIPLNG	; Mask to get just ship length
+		
+		LOAD	s0,	Cursor	; s0 becomes temp_cursor
+		OUTPUT	s0, PA_SHIP_CHECK_0
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		ADD		s0, INC_X	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_1
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		ADD		s0, INC_X	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_2
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		ADD		s0, INC_X	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_3
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		ADD		s0, INC_X	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_4
+		JUMP	next_mvmt_go_s3_done	; max length is 5, so don't need to check anymore		
+		
+		
+
+next_mvmt_go_s3_s:
+		LOAD	s0,	Cursor		; Get Y value into s0, going to add length (s1) to it (go south)
+		AND		s0,	Y_COOR
+		ADD		s0, s1			; y_coor = y_coor + length
+		LOAD	s1,	MAX_Y
+		COMPARE	s1,	s0			; check if MAX_Y < (Y_coor + length)
+		JUMP	C,	invalid_flag; CARRY is set If sX < sY
+		;s1 no longer contains Ship_Length, reload it
+		LOAD	s1,	Ship_info	; get ship info reg to use later
+		AND		s1,	MSK_SHIPLNG	; Mask to get just ship length
+		
+		LOAD	s0,	Cursor	; s0 becomes temp_cursor
+		OUTPUT	s0, PA_SHIP_CHECK_0
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		ADD		s0, INC_Y	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_1
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		ADD		s0, INC_Y	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_2
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		ADD		s0, INC_Y	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_3
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		ADD		s0, INC_Y	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_4
+		JUMP	next_mvmt_go_s3_done	; max length is 5, so don't need to check anymore
+		
+
+next_mvmt_go_s3_w:	
+		LOAD	s0,	Cursor		; Get X value into s0, going to subtract length (s1) from it (go west)
+		AND		s0,	X_COOR
+		SR0		s0				; Shift right four times to get out of upper nibble	
+		SR0		s0
+		SR0		s0
+		SR0		s0
+		SUB		s0, s1			; x_coor = x_coor - length
+		JUMP	C,	invalid_flag; Carry flag, when set, indicates an underflow (borrow) occurred
+		;s1 still contains Ship_Length
+		
+		LOAD	s0,	Cursor	; s0 becomes temp_cursor
+		OUTPUT	s0, PA_SHIP_CHECK_0
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		SUB		s0, INC_X	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_1
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		SUB		s0, INC_X	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_2
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		SUB		s0, INC_X	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_3
+		SUB		s1, 1		; decrement temp_ship_length
+		JUMP	Z,	next_mvmt_go_s3_done	; if temp_ship_length is zero, we are done
+		SUB		s0, INC_X	; Move temp_cursor one position
+		OUTPUT	s0, PA_SHIP_CHECK_4
+		JUMP	next_mvmt_go_s3_done	; max length is 5, so don't need to check anymore
+		
+		
+		;get ship length
+
+
+        ;LOAD    s0, LocX            ; Grab current LocX value
+        ;STORE   s0, SP_OLDX         ; Store it into SP_OLDX
+        ;LOAD    s0, LocY            ; Grab current LocY value
+        ;STORE   s0, SP_OLDY         ; Store it into SP_OLDY
+next_mvmt_go_s3_done:
 				RETURN					
 
 next_mvmt_go_s4:
@@ -1118,6 +1282,7 @@ isr:			STORE		s6,		SP_TEMP1			; 	save s6, s5
 				TEST		s6,		FF					;	if (SP_SEM == 0) {  // update system register values
 				JUMP		NZ,		isr_L0				; -- ZF == 0 says semaphore != 0
 													;		// no - get the data from the rojobot emulator
+				INPUT		valid_flag,	PA_VALID_FLAG	;
 				INPUT		LocX,	PA_LOCX				;		get Rojobot X-coordinate 
 				INPUT		LocY,	PA_LOCY				;		get Rojobot Y-coordinate
 				INPUT		Botinf,	PA_BOTINFO			;		get Rojobot Movement and Orientation
