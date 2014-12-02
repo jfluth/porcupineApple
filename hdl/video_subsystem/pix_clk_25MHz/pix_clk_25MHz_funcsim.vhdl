@@ -1,10 +1,10 @@
 -- Copyright 1986-2014 Xilinx, Inc. All Rights Reserved.
 -- --------------------------------------------------------------------------------
 -- Tool Version: Vivado v.2014.3 (win64) Build 1034051 Fri Oct  3 17:14:12 MDT 2014
--- Date        : Sun Nov 23 13:32:20 2014
+-- Date        : Mon Dec 01 18:43:27 2014
 -- Host        : IPA running 64-bit major release  (build 9200)
--- Command     : write_vhdl -force -mode funcsim {c:/Users/pwl/Git
---               Repos/540/final_proj/pix_clk_25MHz/pix_clk_25MHz_funcsim.vhdl}
+-- Command     : write_vhdl -force -mode funcsim {C:/Users/pwl/Git
+--               Repos/540/final_proj/hdl/video_subsystem/pix_clk_25MHz/pix_clk_25MHz_funcsim.vhdl}
 -- Design      : pix_clk_25MHz
 -- Purpose     : This VHDL netlist is a functional simulation representation of the design and should not be modified or
 --               synthesized. This netlist cannot be used for SDF annotated simulation.
@@ -18,7 +18,7 @@ entity pix_clk_25MHz_pix_clk_25MHz_clk_wiz is
   port (
     clk_in1 : in STD_LOGIC;
     pix_clk_25MHz : out STD_LOGIC;
-    resetn : in STD_LOGIC
+    reset : in STD_LOGIC
   );
   attribute ORIG_REF_NAME : string;
   attribute ORIG_REF_NAME of pix_clk_25MHz_pix_clk_25MHz_clk_wiz : entity is "pix_clk_25MHz_clk_wiz";
@@ -29,7 +29,6 @@ architecture STRUCTURE of pix_clk_25MHz_pix_clk_25MHz_clk_wiz is
   signal clkfbout_buf_pix_clk_25MHz : STD_LOGIC;
   signal clkfbout_pix_clk_25MHz : STD_LOGIC;
   signal pix_clk_25MHz_pix_clk_25MHz : STD_LOGIC;
-  signal reset_high : STD_LOGIC;
   signal NLW_mmcm_adv_inst_CLKFBOUTB_UNCONNECTED : STD_LOGIC;
   signal NLW_mmcm_adv_inst_CLKFBSTOPPED_UNCONNECTED : STD_LOGIC;
   signal NLW_mmcm_adv_inst_CLKINSTOPPED_UNCONNECTED : STD_LOGIC;
@@ -182,15 +181,7 @@ mmcm_adv_inst: unisim.vcomponents.MMCME2_ADV
       PSEN => '0',
       PSINCDEC => '0',
       PWRDWN => '0',
-      RST => reset_high
-    );
-mmcm_adv_inst_i_1: unisim.vcomponents.LUT1
-    generic map(
-      INIT => X"1"
-    )
-    port map (
-      I0 => resetn,
-      O => reset_high
+      RST => reset
     );
 end STRUCTURE;
 library IEEE;
@@ -201,7 +192,7 @@ entity pix_clk_25MHz is
   port (
     clk_in1 : in STD_LOGIC;
     pix_clk_25MHz : out STD_LOGIC;
-    resetn : in STD_LOGIC
+    reset : in STD_LOGIC
   );
 end pix_clk_25MHz;
 
@@ -213,6 +204,6 @@ inst: entity work.pix_clk_25MHz_pix_clk_25MHz_clk_wiz
     port map (
       clk_in1 => clk_in1,
       pix_clk_25MHz => pix_clk_25MHz,
-      resetn => resetn
+      reset => reset
     );
 end STRUCTURE;

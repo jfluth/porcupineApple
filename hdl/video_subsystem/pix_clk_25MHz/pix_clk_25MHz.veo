@@ -74,5 +74,5 @@
     // Clock out ports
     .pix_clk_25MHz(pix_clk_25MHz),     // output pix_clk_25MHz
     // Status and control signals
-    .resetn(resetn));       // input resetn
+    .reset(reset));       // input reset
 // INST_TAG_END ------ End INSTANTIATION Template ---------

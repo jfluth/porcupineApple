@@ -73,7 +73,7 @@ module pix_clk_25MHz
   // Clock out ports
   output        pix_clk_25MHz,
   // Status and control signals
-  input         resetn
+  input         reset
  );
 
   pix_clk_25MHz_clk_wiz inst
@@ -83,7 +83,7 @@ module pix_clk_25MHz
   // Clock out ports  
   .pix_clk_25MHz(pix_clk_25MHz),
   // Status and control signals               
-  .resetn(resetn) 
+  .reset(reset) 
   );
 
 endmodule

@@ -70,7 +70,7 @@ module pix_clk_25MHz_clk_wiz
   // Clock out ports
   output        pix_clk_25MHz,
   // Status and control signals
-  input         resetn
+  input         reset
  );
 
   // Input buffering
@@ -163,7 +163,7 @@ module pix_clk_25MHz_clk_wiz
     .PWRDWN              (1'b0),
     .RST                 (reset_high));
 
-  assign reset_high = ~resetn; 
+  assign reset_high = reset; 
 
 
   // Output buffering

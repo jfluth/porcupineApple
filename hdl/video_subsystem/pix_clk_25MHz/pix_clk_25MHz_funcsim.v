@@ -1,10 +1,10 @@
 // Copyright 1986-2014 Xilinx, Inc. All Rights Reserved.
 // --------------------------------------------------------------------------------
 // Tool Version: Vivado v.2014.3 (win64) Build 1034051 Fri Oct  3 17:14:12 MDT 2014
-// Date        : Sun Nov 23 13:32:20 2014
+// Date        : Mon Dec 01 18:43:27 2014
 // Host        : IPA running 64-bit major release  (build 9200)
-// Command     : write_verilog -force -mode funcsim {c:/Users/pwl/Git
-//               Repos/540/final_proj/pix_clk_25MHz/pix_clk_25MHz_funcsim.v}
+// Command     : write_verilog -force -mode funcsim {C:/Users/pwl/Git
+//               Repos/540/final_proj/hdl/video_subsystem/pix_clk_25MHz/pix_clk_25MHz_funcsim.v}
 // Design      : pix_clk_25MHz
 // Purpose     : This verilog netlist is a functional simulation representation of the design and should not be modified
 //               or synthesized. This netlist cannot be used for SDF annotated simulation.
@@ -17,29 +17,29 @@
 module pix_clk_25MHz
    (clk_in1,
     pix_clk_25MHz,
-    resetn);
+    reset);
   input clk_in1;
   output pix_clk_25MHz;
-  input resetn;
+  input reset;
 
 (* IBUF_LOW_PWR *)   wire clk_in1;
   wire pix_clk_25MHz;
-  wire resetn;
+  wire reset;
 
 pix_clk_25MHz_pix_clk_25MHz_clk_wiz inst
        (.clk_in1(clk_in1),
         .pix_clk_25MHz(pix_clk_25MHz),
-        .resetn(resetn));
+        .reset(reset));
 endmodule
 
 (* ORIG_REF_NAME = "pix_clk_25MHz_clk_wiz" *) 
 module pix_clk_25MHz_pix_clk_25MHz_clk_wiz
    (clk_in1,
     pix_clk_25MHz,
-    resetn);
+    reset);
   input clk_in1;
   output pix_clk_25MHz;
-  input resetn;
+  input reset;
 
 (* IBUF_LOW_PWR *)   wire clk_in1;
   wire clk_in1_pix_clk_25MHz;
@@ -47,8 +47,7 @@ module pix_clk_25MHz_pix_clk_25MHz_clk_wiz
   wire clkfbout_pix_clk_25MHz;
   wire pix_clk_25MHz;
   wire pix_clk_25MHz_pix_clk_25MHz;
-  wire reset_high;
-  wire resetn;
+  wire reset;
   wire NLW_mmcm_adv_inst_CLKFBOUTB_UNCONNECTED;
   wire NLW_mmcm_adv_inst_CLKFBSTOPPED_UNCONNECTED;
   wire NLW_mmcm_adv_inst_CLKINSTOPPED_UNCONNECTED;
@@ -167,12 +166,7 @@ module pix_clk_25MHz_pix_clk_25MHz_clk_wiz
         .PSEN(1'b0),
         .PSINCDEC(1'b0),
         .PWRDWN(1'b0),
-        .RST(reset_high));
-LUT1 #(
-    .INIT(2'h1)) 
-     mmcm_adv_inst_i_1
-       (.I0(resetn),
-        .O(reset_high));
+        .RST(reset));
 endmodule
 `ifndef GLBL
 `define GLBL
