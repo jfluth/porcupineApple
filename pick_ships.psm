@@ -1046,13 +1046,128 @@ next_mvmt_go_s4:
 
 			
 
+
+
+;===============================================================================
+;
+;=======================  BEGIN JORDAN FLUTH    ================================
+;
+;===============================================================================
 ; ==============================================================================
 ; === next_loc() - Calculate digits for Rojobot location                     ===
 ; === Registers affected: Dig3, Dig2, Dig1, Dig0, s0                         ===
 ; === Uses LocX and LocY to get location.                                    ===  
 ; ==============================================================================
+DISP_X_Y:		LOAD		s0,		LocX				; Dig[3:2] gets X-coordinate
+				LOAD		Dig1,	s0					; Digit 2 gets lower nibble
 				
+				LOAD		s0,		LocY				; Dig[1:0] gets Y-coordinate
+				LOAD		Dig0,	s0					; Digit 0 gets lower nibble
+	
+				RETURN
 
+;===============================================================================
+;
+;=======================  TURN FUNCTIONALITY   =================================
+;
+;===============================================================================
+TURN:			LOAD 	s0, 	DONE_PLACING
+				COMPARE s0, 	01
+				JUMP 	NZ, 	READBTN
+				RETURN
+
+READBTN:		CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
+				;CALL	btn2mot						; and calculate new MotCtl - returned in s1
+				;OUTPUT	s1,		PA_MOTCTL_IN		; tell Rojobot what to do
+
+				COMPARE s0, 	BLANK
+				JUMP 	Z,		ERROR
+				COMPARE s0, 	UP_BTN
+				JUMP 	Z,		UP 	
+				COMPARE s0, 	DOWN_BTN
+				JUMP 	Z,		DOWN 
+				COMPARE s0, 	LEFT_BTN
+				JUMP 	Z,		LEFT 														
+				COMPARE s0, 	RIGHT_BTN
+				JUMP 	Z,		RIGHT 
+				COMPARE s0, 	ENTER_BTN
+				JUMP 	Z,		SEND 
+
+
+UP:				LOAD 	s0, 	LOCY
+				COMPARE s0, 	00
+				JUMP 	Z, 		ERROR
+				SUB 	s0, 	01
+				RETURN
+
+DOWN:			LOAD 	s0, 	LOCY
+				COMPARE s0, 	09
+				JUMP 	Z, 		ERROR
+				ADD 	s0, 	01
+				RETURN
+
+LEFT:			LOAD 	s0, 	LOCX
+				COMPARE s0, 	00
+				JUMP 	Z, 		ERROR
+				SUB 	s0, 	01
+				RETURN
+
+RIGHT:			LOAD 	s0, 	LOCX
+				COMPARE s0, 	00
+				JUMP 	Z, 		ERROR
+				ADD 	s0, 	01
+				RETURN
+
+SEND:			LOAD 	s0, 	LOCX
+				AND 	s0, 	0F
+				LOAD 	s1, 	LOCY
+				AND 	s1, 	0F
+				SL0 	s0
+				SL0 	s0
+				SL0 	s0
+				SL0 	s0
+				OR 		s0, 	s1
+				;OUTPUT s0, 	TO THE PORT
+				RETURN
+
+RECEIVE: 		;LOAD 	s0, 	get sent message
+				LOAD 	s1, 	s0
+				AND 	s1, 	0F
+				LOAD 	s2, 	s0
+				AND 	s2, 	F0
+				SR0 	s2
+				SR0 	s2
+				SR0 	s2
+				SR0 	s2
+				COMPARE s0, 	HIT_CODE
+				JUMP 	Z, 		MARK_HIT
+				COMPARE s0, 	MISS_CODE
+				JUMP 	Z, 		MARK_MISS
+				COMPARE s0, 	LOSE_CODE
+				JUMP 	Z, 		MARK_LOSE
+				JUMP ERROR
+				; figure out what to do here 
+
+MARK_HIT:		LOAD 	s0, 	HIT 
+				JUMP 	SEND_MARK
+
+MARK_MISS:		LOAD 	s0, 	MISS 
+				JUMP 	SEND_MARK
+
+MARK_LOSE: 		LOAD 	s0, 	LOSE 
+				JUMP 	SEND_MARK
+
+SEND_MARK: 		OUTPUT s0, ; the right port
+				RETURN
+
+ERROR:			RETURN
+
+
+;===============================================================================
+;
+;=======================  END JORDAN FLUTH    ==================================
+;
+;===============================================================================
 
 ;##############################################
 ; This function was changed for Project 2 #####	
