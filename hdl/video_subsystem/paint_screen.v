@@ -39,6 +39,7 @@ module paint_screen(
 	reg  [7:0]   tile_address;
 	reg	 [19:0]  screen_address;
 	reg  [9:0]   icon_address;
+	reg  [15:0]  logo_address;
 	
 	wire [11:0]  ship_data;
 	wire [11:0]  hit_data;
@@ -52,7 +53,7 @@ module paint_screen(
 	reg  [3:0]   tile_data;
 	
     reg	 [3:0]	display_region;
-	reg			ROM_select;
+	reg	 [2:0]	ROM_select;
 	
 	
     // break screen into named regions
@@ -111,49 +112,43 @@ module paint_screen(
 	// have different dimensions. Based on what screen region is currently
 	// being painted, manipulate the current pixel coordinates to properly
 	// index into the correct ROM.
-    always @ (posedge clk) begin
-        if (~vid_on) begin screen_color <= BLACK;
-        end else begin
-            screen_color <= 12'bZ; // default to Z makes it easy to see problems in sim
-            case (display_region)
-                TOP: begin
-                    // for now, just display white but this will have to index into the 
-                    // screen ROM and someday maybe one of the planned status message RAMs
-                    // screen_color <= WHITE;
-					screen_address <= ((pixel_y * 10'd640) + pixel_x); // -PWL this is wider than the ROM's address but it shouldn't matter (I can adjust if necessary)
-					ROM_select      <= icon_data;
-                    end
+    always @(*) begin
+        case (display_region)
+            TOP: begin
+                // for now, just display white but this will have to index into the 
+                // screen ROM and someday maybe one of the planned status message RAMs
+                // screen_color <= WHITE;
+				logo_address <= ((pixel_y * 10'd640) + pixel_x); 
+                end
+            
+            TILES_US: begin 
+                // calculate which tile we are in
+                // fetch what should be displayed in that tile from tile_RAM
+                // calculate the index into the proper ROM
+                // fetch the color from that ROM and pain the screen
+				// screen_color <= BLUE;
+				icon_address <= {((pixel_y - 7'd99) & 5'h1F) , (pixel_x & 5'h1F)}; // current pixel modulo 32
+                end
                 
-                TILES_US: begin 
-                    // calculate which tile we are in
-                    // fetch what should be displayed in that tile from tile_RAM
-                    // calculate the index into the proper ROM
-                    // fetch the color from that ROM and pain the screen
-					// screen_color <= BLUE;
-					screen_address <= {((pixel_y - 7'd99) & 8'h1F) , (pixel_x & 8'h1F)}; // current pixel modulo 32
-                    screen_color   <= icon_data;
-                    end
-                    
-                TILES_THEM: begin
-                    // same as above, if the tile_RAM ends up being 20x10 instead of
-                    // two 10x10s then we dont even need this block
-                     screen_color <= RED;
-					//screen_address <= {((pixel_y - 7'd99) & 8'h1F) , ((pixel_x - 9'd319) & 8'h1F)}; //current pixel modulo 32
-					//screen_color   <= icon_data;
-                    end
-                    
-                BOTTOM: begin
-                    // for now, just display white but this will have to index into
-                    // the bottom display/status RAMs when we implement that part of the display
-                    screen_color <= CYAN;
-                    end
+            TILES_THEM: begin
+                // same as above, if the tile_RAM ends up being 20x10 instead of
+                // two 10x10s then we dont even need this block
+                //screen_color <= RED;
+				icon_address <= {((pixel_y - 7'd99) & 5'h1F) , ((pixel_x - 9'd319) & 5'h1F)}; //current pixel modulo 32
+				//ROM_select   <= EMPTY;
+                end
                 
-                ILLEGAL: begin
-                    // OMG! how did we end up in this position?
-                    $WRITE("display_region seems to be an illegal value. I blame Paul!");
-                    end
-            endcase
-        end//else
+            BOTTOM: begin
+                // for now, just display white but this will have to index into
+                // the bottom display/status RAMs when we implement that part of the display
+                //screen_color <= CYAN;
+                end
+            
+            ILLEGAL: begin
+                // OMG! how did we end up in this position?
+                $WRITE("display_region seems to be an illegal value. I blame Paul!");
+                end
+        endcase
     end //always
 	
 	// ROM mux
@@ -161,7 +156,7 @@ module paint_screen(
 		icon_data <= 12'bZ;	// default Z's show errors in simulation
 		case (ROM_select)
 			SHIP:	begin icon_data <= ship_data;	end
-			HIT:	begin icon_data <= hit_data;		end
+			HIT:	begin icon_data <= hit_data;	end
 			MISS: 	begin icon_data <= miss_data;	end
 			CURSOR: begin icon_data <= cursor_data;	end
 			EMPTY:	begin icon_data <= empty_data;	end
@@ -170,6 +165,27 @@ module paint_screen(
 		endcase
 	end
 
+	always @(posedge clk) begin
+		if (~vid_on) begin
+			screen_color <= RED;
+		end else begin
+			case (display_region)
+				TOP: begin
+					ROM_select   <= LOGO;
+					screen_color <= icon_data;
+					end
+				TILES_US: begin
+					ROM_select   <= EMPTY;
+					screen_color <= BLUE;
+					end
+				TILES_THEM: begin
+					ROM_select   <= EMPTY;
+					screen_color <= GREEN;
+					end
+				default: begin screen_color  <= CYAN; end
+			endcase
+		end	
+	end
 
 	///////////////////////////////////////////////////////////////////////////	
 	// Instantiate logo_ROM
@@ -178,7 +194,7 @@ module paint_screen(
 	logo_ROM  (
 		.clka  (clk),
 		.ena   (1'b1),		// always enabled
-		.addra	(screen_address),
+		.addra	(logo_address),
 		.douta	(logo_data)
 	);
 
@@ -189,7 +205,7 @@ module paint_screen(
 	empty_tile_ROM #(/* Keeping parameter defaults */)
 	empty_tile_ROM  (
 		.clka	(clk),
-		.addra	(screen_address),
+		.addra	(icon_address),
 		.douta	(empty_data)
 	);
 
