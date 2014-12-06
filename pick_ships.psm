@@ -89,8 +89,8 @@ CONSTANT	PA_SHIP_CHECK_1,	1A	; (o) Request to RAM to verify position is valid or
 CONSTANT	PA_SHIP_CHECK_2,	1B	; (o))Request to RAM to verify position is valid or not
 CONSTANT	PA_SHIP_CHECK_3,	1C	; (o) Request to RAM to verify position is valid or not
 CONSTANT	PA_SHIP_CHECK_4,	1D	; (o) Request to RAM to verify position is valid or not
-;CONSTANT	PA_LMDIST_ALT,		1E	; (i) Rojobot left motor distance register
-;CONSTANT	PA_RMDIST_ALT,		1F	; (i) Rojobot right motor distance register
+CONSTANT	PA_DATA,			1E	; (i/o) Rojobot left motor distance register
+CONSTANT	PA_ADDR_OUT,		1F	; (o) Rojobot right motor distance register
 
 
 ; =====================================
@@ -262,7 +262,18 @@ CONSTANT	MV_FRT,			0F		; Movement is fast right turn
 CONSTANT	MSKMVMT,	0F			; Mask out all but movement bits
 CONSTANT	MSKORIENT,	07			; Mask out all but orientation bits
 
+;=========================================
+;
+;========== JF CONSTANTS ================
+;
+;=========================================
+CONSTANT 	HIT, 			10
+CONSTANT 	MISS, 			00
+CONSTANT 	LOSE, 			FF
 
+CONSTANT 	HIT_CODE, 		10
+CONSTANT 	MISS_CODE, 		00
+CONSTANT 	LOSE_CODE, 		FF
 
 ; =================================
 ; === Scratch Pad RAM Variables ===
@@ -344,6 +355,20 @@ CONSTANT  SP_ORIENT,  36  ; Orientation we need to turn to
 CONSTANT  SP_OLDX,    37  ; Old LocX value
 CONSTANT  SP_OLDY,    38  ; Old LocY value
 
+CONSTANT  SP_GAME_STATE, 	39
+CONSTANT  SP_PLAYER_NUMBER, 40
+CONSTANT  SP_GUESS, 		41
+CONSTANT  SP_PLAYER_ONE,    01
+CONSTANT  SP_PLAYER_TWO,    02
+CONSTANT  SP_SENDING, 		01
+CONSTANT  SP_READ_BTNS,		02
+CONSTANT  SP_RECEIVING,     03
+CONSTANT  SP_SEND_ACK, 		04
+CONSTANT  SP_RCVE_ACK, 		05
+CONSTANT  SP_RCVE_RESULT, 	06
+
+CONSTANT ACK, 				FF
+
 ; ===============
 ; === main()  ===
 ; ===============
@@ -354,7 +379,11 @@ ADDRESS	000
 				JUMP	main						; Ken Chapman and is known to be in 2014.2
 				JUMP	main						; Address 003 can be corrupted by Vivado HW manager
 													;
-main:			CALL	init_btnluptbl				; initialize button to MotCtl lookup table
+main:			INPUT 	s0, 	PA_SLSWTCH
+				COMPARE s0, 	MSK_SW0
+				JUMP 	Z, 		SET_PLAYER_ONE
+				JUMP 	NZ, 	SET_PLAYER_TWO
+				CALL	init_btnluptbl				; initialize button to MotCtl lookup table
 				CALL	init_mvmttbl				; initialize movement to character code lookup table
 				LOAD	s1,		00					; clear the semaphore
 				STORE	s1,		SP_SEM				;
@@ -1059,12 +1088,36 @@ next_mvmt_go_s4:
 ; === Registers affected: Dig3, Dig2, Dig1, Dig0, s0                         ===
 ; === Uses LocX and LocY to get location.                                    ===  
 ; ==============================================================================
-DISP_X_Y:		LOAD		s0,		LocX				; Dig[3:2] gets X-coordinate
+DISP_X_Y:		LOAD		s0,		Cursor				; Dig[3:2] gets X-coordinate
+				AND 		s0, 	X_COOR
+				SL0 		s0
+				SL0 		s0
+				SL0 		s0
+				SL0 		s0	
 				LOAD		Dig1,	s0					; Digit 2 gets lower nibble
 				
-				LOAD		s0,		LocY				; Dig[1:0] gets Y-coordinate
+				LOAD		s0,		Cursor				; Dig[1:0] gets Y-coordinate
+				AND 		s0, 	Y_COOR
 				LOAD		Dig0,	s0					; Digit 0 gets lower nibble
 	
+				RETURN
+
+
+;===============================================================================
+;
+;=======================  SET PLAYER ONE AND PLAYER TWO   ======================
+;
+;===============================================================================
+SET_PLAYER_ONE: LOAD  s0, 	SP_PLAYER_ONE
+				STORE s0,	SP_PLAYER_NUMBER
+				LOAD 	s0, 			SP_READ_BTNS
+				STORE 	s0, 			SP_GAME_STATE
+				RETURN
+
+SET_PLAYER_TWO: LOAD  s0, 	SP_PLAYER_TWO
+				STORE s0,	SP_PLAYER_NUMBER
+				LOAD 	s0, 			SP_RECEIVING
+				STORE 	s0, 			SP_GAME_STATE
 				RETURN
 
 ;===============================================================================
@@ -1072,80 +1125,101 @@ DISP_X_Y:		LOAD		s0,		LocX				; Dig[3:2] gets X-coordinate
 ;=======================  TURN FUNCTIONALITY   =================================
 ;
 ;===============================================================================
-TURN:			LOAD 	s0, 	DONE_PLACING
+TURN:			LOAD 	s0, 	PA_PLACE_DONE    ; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
 				COMPARE s0, 	01
-				JUMP 	NZ, 	READBTN
-				RETURN
+				JUMP 	NZ, 	ERROR
+
+				; GO TO THE RIGHT STATE
+				FETCH 	s0, 	SP_GAME_STATE
+				COMPARE s0, 	SP_READ_BTNS 
+				JUMP 	Z, 		READBTN
+				COMPARE s0,	 	SP_SENDING
+				JUMP 	Z, 		SEND_GUESS
+				COMPARE s0, 	SP_RECEIVING
+				JUMP 	Z, 		RECEIVE_GUESS
+				COMPARE s0, 	SP_RCVE_RESULT
+				JUMP 	Z, 		RCVE_RESULT	
+				COMPARE s0, 	SP_SEND_ACK
+				JUMP 	Z, 		SEND_ACK
+				COMPARE s0, 	SP_RCVE_ACK
+				JUMP 	Z, 		RCVE_ACK
+				JUMP 	ERROR
+
 
 READBTN:		CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
-				;CALL	btn2mot						; and calculate new MotCtl - returned in s1
-				;OUTPUT	s1,		PA_MOTCTL_IN		; tell Rojobot what to do
+				CALL	btn2mot						; and calculate new MotCtl - returned in s1
 
-				COMPARE s0, 	BLANK
-				JUMP 	Z,		ERROR
-				COMPARE s0, 	MSK_BTN_UP
+				COMPARE s1, 	MSK_BTN_UP
 				JUMP 	Z,		UP 	
-				COMPARE s0, 	MSK_BTN_DOWN
+				COMPARE s1, 	MSK_BTN_DOWN
 				JUMP 	Z,		DOWN 
-				COMPARE s0, 	MSK_BTN_LEFT
+				COMPARE s1, 	MSK_BTN_LEFT
 				JUMP 	Z,		LEFT 														
-				COMPARE s0, 	MSK_BTN_RIGHT
+				COMPARE s1, 	MSK_BTN_RIGHT
 				JUMP 	Z,		RIGHT 
-				COMPARE s0, 	MSK_BTN_CENTER
-				JUMP 	Z,		SEND
+				COMPARE s1, 	MSK_BTN_CENTER
+				JUMP 	Z,		SEND_GUESS
 				JUMP 	ERROR 
 
 
 UP:				LOAD 	s0, 	Cursor
 				COMPARE s0, 	MIN_Y
 				JUMP 	Z, 		ERROR
-				SUB 	s0, 	INC_Y
-				STORE 	s0,     Cursor
+				SUB 	Cursor, INC_Y
+				LOAD 	s0, 	SP_READ_BTNS
+				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
 DOWN:			LOAD 	s0, 	Cursor
 				COMPARE s0, 	MAX_Y
 				JUMP 	Z, 		ERROR
-				ADD 	s0, 	INC_Y
-				STORE 	s0,     Cursor
+				ADD 	Cursor, INC_Y
+				LOAD 	s0, 	SP_READ_BTNS
+				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
 LEFT:			LOAD 	s0, 	Cursor
 				COMPARE s0, 	MIN_X
 				JUMP 	Z, 		ERROR
-				SUB 	s0, 	INC_X
-				STORE 	s0,     Cursor
+				SUB 	Cursor, INC_X
+				LOAD 	s0, 	SP_READ_BTNS
+				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
 RIGHT:			LOAD 	s0, 	Cursor
 				COMPARE s0, 	MAX_X
 				JUMP 	Z, 		ERROR
-				ADD 	s0, 	INC_X
-				STORE 	s0,     Cursor
+				ADD 	Cursor, INC_X
+				LOAD 	s0, 	SP_READ_BTNS
+				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
-SEND:			LOAD 	s0, 	Cursor
-				;OUTPUT s0, 	TO THE PORT
-				STORE 	s0,     Cursor
+SEND_GUESS:		LOAD 	s0, 	Cursor
+				OUTPUT 	s0, 	PA_ADDR_OUT 		; GET THE CURRENT CURSOR POSITION
+				INPUT 	s1, 	PA_DATA 	 		; GET THE DATA IN THAT RAM LOCATION
+				;COMPARE s1, 	GUESSED_LOCATION 	; CHECK TO SEE IF ITS ALREADY BEEN GUESSED
+				STORE  	s0,	 	SP_GUESS
+				OUTPUT 	s0, 	PA_DATA 		  	; SEND THE GUESS
+
+				; NEED TO UPDATE GUESSES...
+
+				LOAD 	s0, 	SP_RECEIVING
+				STORE 	s0, 	SP_GAME_STATE; UPDATE THE GAME STATE
 				RETURN
 
-RECEIVE: 		;LOAD 	s0, 	get sent message
+RECEIVE_GUESS:	INPUT 	s0, 	PA_DATA 	 		; GET THE GUESS FROM THE OTHER PLAYER
 				LOAD 	s1, 	s0
-				AND 	s1, 	Y_COOR
-				LOAD 	s2, 	s0
-				AND 	s2, 	X_COOR
-				SR0 	s2
-				SR0 	s2
-				SR0 	s2
-				SR0 	s2
+				OUTPUT 	s1, 	PA_ADDR_OUT 	 	; SEND THE XY TO THE RAM
+				INPUT 	s0, 	PA_DATA 	 		; READ DATA AT THAT LOCATION
+				; SIGNAL A READ???
+
 				COMPARE s0, 	HIT_CODE
 				JUMP 	Z, 		MARK_HIT
 				COMPARE s0, 	MISS_CODE
 				JUMP 	Z, 		MARK_MISS
 				COMPARE s0, 	LOSE_CODE
 				JUMP 	Z, 		MARK_LOSE
-				JUMP ERROR
-				; figure out what to do here 
+				JUMP ERROR 
 
 MARK_HIT:		LOAD 	s0, 	HIT 
 				JUMP 	SEND_MARK
@@ -1156,7 +1230,38 @@ MARK_MISS:		LOAD 	s0, 	MISS
 MARK_LOSE: 		LOAD 	s0, 	LOSE 
 				JUMP 	SEND_MARK
 
-SEND_MARK: 		OUTPUT s0, ; the right port
+SEND_MARK: 		OUTPUT 	s0, 	PA_DATA
+				LOAD 	s0, 	SP_RCVE_RESULT	; UPDATE THE GAME STATE
+				STORE 	s0, 	SP_GAME_STATE
+				RETURN
+
+
+RCVE_RESULT: 	INPUT 	s0, 	PA_DATA
+				LOAD 	s1, 	SP_GUESS
+				OUTPUT 	s1, 	PA_ADDR_OUT
+				OUTPUT 	s0, 	PA_DATA
+				LOAD 	s0, 	SP_SEND_ACK		; UPDATE THE GAME STATE
+				STORE 	s0, 	SP_GAME_STATE
+				RETURN  
+
+SEND_ACK: 		LOAD 	s0, 	ACK
+				OUTPUT 	s0, 	PA_DATA
+				LOAD 	s0, 	SP_RECEIVING	; UPDATE THE GAME STATE
+				STORE 	s0, 	SP_GAME_STATE
+				RETURN 
+
+RCVE_ACK: 		INPUT 	s0, 	PA_DATA
+				COMPARE s0, 	ACK
+				JUMP 	NZ, 	NOT_ACKED
+				JUMP 	Z, 		ACKED
+				JUMP 	ERROR
+
+NOT_ACKED: 		LOAD 	s0, 	SP_RCVE_ACK 	; UPDATE THE GAME STATE
+				STORE 	s0, 	SP_GAME_STATE
+				RETURN
+
+ACKED: 			LOAD 	s0, 	SP_SENDING 		; UPDATE THE GAME STATE
+				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
 ERROR:			RETURN
