@@ -53,7 +53,7 @@ module Nexys4fpga (
 	output              dp,
 	output	[7:0]		an,						// Seven segment display anode pins	
 	
-	output	[7:0]		JA,						// JA Header
+	//output	[7:0]		JA,						// JA Header
 	
 	output  [3:0]       vgaRed,
 	output  [3:0]       vgaBlue,
@@ -94,6 +94,11 @@ module Nexys4fpga (
     
     wire [15:0] leds;
     
+    wire	[9:0]	pixCol;
+    wire    [9:0]   pixRow;
+    wire			pixClock;
+    wire            vidOn;    
+    
 	assign	led = leds;			// leds show bot sensor information
 
 /******************************************************************/
@@ -106,7 +111,7 @@ module Nexys4fpga (
 	assign dp = segs_int[7];
 	assign seg = segs_int[6:0];
 	
-	assign	JA = {sysclk, sysreset, 6'b000000};
+	//assign	JA = {sysclk, sysreset, 6'b000000};
 	
 	//instantiate the debounce module
 	debounce
@@ -250,34 +255,15 @@ module Nexys4fpga (
         .clk 			(sysclk)
     );
 
-    // instantiate bot module (black-box)
-    /*bot BotSim 
-    (
-        .MotCtl_in(MotCtrl),    // input Motor control input	
-        .LocX_reg(locX),        // output X-coordinate of rojobot's location        
-        .LocY_reg(locY),        // output Y-coordinate of rojobot's location
-        .Sensors_reg(sensors),  // output Sensor readings
-        .BotInfo_reg(bot_info), // output Information about rojobot's activity
-        
-        // interface to the video logic
-        .vid_row(vid_row_bot),  // input video logic row address
-        .vid_col(vid_col_bot),  // input video logic column address
-        
-        .vid_pixel_out(world_pixel),    // output pixel (location) value
-        
-        // interface to the system
-        .clk(sysclk),           // input system clock
-        .reset(kcpsm6_reset),   // input system reset
-                              
-        .upd_sysregs(int_request)   // output signal to indicate updates processed
-    );*/
+
   
   
 	wire ConnEstablished;
 	assign ConnEstablished = 1'b1;	//For testing purposes
 	
-	wire [7:0] RAMAddress;
+	wire [7:0] Cursor, RAMWriteAddress, RAMAddress;
 	wire [1:0] RAMReadVal;	// assign this as output from the dual port RAM
+	wire [3:0] RAMReadValExt;
 	wire	   RAMWriteEnable;
 	wire [1:0] RAMWriteVal;
 	
@@ -289,7 +275,7 @@ module Nexys4fpga (
 	wire enable;
 	assign enable = !RAMWriteEnable;
 	
-	blk_mem_gen_0 MyShips (
+	/*blk_mem_gen_0 MyShips (
 		.clka(clk),
 		.wea(RAMWriteEnable),
 		.addra(RAMAddress),
@@ -298,14 +284,34 @@ module Nexys4fpga (
 		.enb(enable),
 		.addrb(RAMAddress),
 		.doutb(RAMReadVal)
-	);
+	);*/
 	
-	reg [14:0] counter = 0;
+	assign RAMAddress = (RAMWriteEnable) ? RAMWriteAddress : Cursor;
+	assign RAMReadVal = RAMReadValExt[1:0];
+	
+	wire [3:0] temp_datab_output;
+	
+	tile_RAM_US tile_RAM_US (
+    /* synthesis syn_black_box black_box_pad_pin="clka,wea[0:0],addra[9:0],dina[3:0],douta[3:0],clkb,web[0:0],addrb[9:0],dinb[3:0],doutb[3:0]" */
+      .clka(clk),
+      .wea(RAMWriteEnable),
+      .addra({2'b00,RAMAddress}),  //10 bits?
+      .dina({2'b00,RAMWriteVal}),
+      .douta(RAMReadValExt),
+      
+      .clkb(clk),
+      .web(1'b0),
+      .addrb(10'h000),
+      .dinb(4'h0),
+      .doutb(temp_datab_output)
+    );
+	
+	reg [26:0] counter = 0;
 	reg slow_int = 0;
 	
 	always @ (posedge clk) begin
 		counter = counter + 1;
-		if (counter == 15'd32767) begin
+		if (counter == 27'd20000000) begin
 			slow_int <= 1'b1;
 			counter <= 0;
 		end
@@ -335,7 +341,9 @@ module Nexys4fpga (
 		
 		.ConnEstablished(ConnEstablished),   //input to picoblaze, connection established signal
 	
-		.RAMAddress(RAMAddress),
+		.Cursor(Cursor),
+		//.CursorExtraCheck(CursorExtra),
+		.RAMWriteAddress(RAMWriteAddress),
 		.RAMWriteEnable(RAMWriteEnable),
 		.ReturnReadRAMValue(RAMReadVal),	// EXPAND if needed
 		.WriteValue(RAMWriteVal),			// EXPAND if needed
@@ -371,6 +379,71 @@ module Nexys4fpga (
         .decimal_point_lower(decpts[3:0]), 
         .decimal_point_upper(decpts[7:4])
     );
+    
+    
+    
+    // adding Paul's stuff
+    ///////////////////////////////////////////////////////////////////////////	
+        // Instantiate Pixel Clock
+        ///////////////////////////////////////////////////////////////////////////
+        pix_clk_25MHz    pixClock25 (
+            .clk_in1        (clk),
+            .pix_clk_25MHz    (pixClock),
+            .reset          (sysreset)
+        );
+        
+        
+        ///////////////////////////////////////////////////////////////////////////    
+        // Instantiate DTG
+        ///////////////////////////////////////////////////////////////////////////
+        dtg #(/* Keeping parameter defaults */)
+        dtg (
+            .clock            (pixClock),
+            .rst            (sysreset),
+            .horiz_sync        (Hsync),
+            .vert_sync        (Vsync),
+            .video_on        (vidOn),
+            .pixel_row        (pixRow), 
+            .pixel_column    (pixCol)
+        );
+    
+        ///////////////////////////////////////////////////////////////////////////    
+        // Instantiate video subsystem
+        ///////////////////////////////////////////////////////////////////////////
+    
+        dynamic_screen #(/* No parameters in this module */)
+        dynamicScreen (
+            .clk            (clk),
+            .rst            (sysreset),
+            .pixel_x        (pixCol),
+            .pixel_y        (pixRow),
+            .vid_on            (vidOn),
+            .us_ram_addr    (),//NC for testing
+            .them_ram_addr  (),//NC for testing
+            .us_ram_data    (2'b00),
+            .them_ram_data  (2'b01),
+            .screen_color    ({vgaRed,vgaGreen,vgaBlue})
+        );
+    
+    /* dynamic_screen VideoController (
+        .clk(sysclk),
+        .rst(sysreset),
+        .pixel_x(pixel_x),
+        .pixel_y(pixel_y),
+        .vid_on(vid_on),
+        .us_ram_data(us_ram_data), //-PWL this will have to get wider if we add nice ship display
+        .them_ram_data(them_ram_data),
+        .us_ram_addr(us_ram_addr),
+        .them_ram_addr(them_ram_addr),
+        .screen_color(screen_color)
+    );
+    
+    //temporary regs     
+    reg [9:0]   pixel_x, pixel_y, us_ram_addr, them_ram_addr;
+    reg vid_on;
+    reg [1:0] us_ram_data, them_ram_data;
+    reg [11:0] screen_color; */
+     
 
     // Modules for Video output generation (VGA controller)
     /*display_timing_gen 
