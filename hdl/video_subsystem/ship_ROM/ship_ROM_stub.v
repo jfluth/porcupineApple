@@ -1,9 +1,9 @@
 // Copyright 1986-2014 Xilinx, Inc. All Rights Reserved.
 // --------------------------------------------------------------------------------
 // Tool Version: Vivado v.2014.3 (win64) Build 1034051 Fri Oct  3 17:14:12 MDT 2014
-// Date        : Sun Dec 07 01:32:45 2014
+// Date        : Sun Dec 07 12:42:31 2014
 // Host        : IPA running 64-bit major release  (build 9200)
-// Command     : write_verilog -force -mode synth_stub {c:/Users/pwl/Git
+// Command     : write_verilog -force -mode synth_stub {C:/Users/pwl/Git
 //               Repos/540/final_proj/hdl/video_subsystem/ship_ROM/ship_ROM_stub.v}
 // Design      : ship_ROM
 // Purpose     : Stub declaration of top-level module interface

@@ -28,7 +28,7 @@
 `define	PA_DIG1		8'h05		// (o) digit 1 port address
 `define	PA_DIG0		8'h06		// (o) digit 0 port address
 `define	PA_DP		8'h07		// (o) decimal points 3:0 port address
-`define	PA_RSVD		8'h08		// (o) *RESERVED* port address
+`define	PA_OOB		8'h08		// (o) Out of bounds port address
 
 
 // Interface registers
@@ -80,7 +80,9 @@ module nexys4_pico_if (
 				   
     input   ConnEstablished,   //input to picoblaze, connection established signal
 	
-	output	reg	[7:0]	RAMAddress,
+	output	reg	[7:0]	Cursor,
+	//output  reg [7:0]	CursorExtraCheck,
+	output	reg	[7:0]	RAMWriteAddress,
 	output	reg			RAMWriteEnable,
 	input		[1:0]	ReturnReadRAMValue,	// EXPAND if needed
 	output	reg	[1:0]	WriteValue,			// EXPAND if needed
@@ -116,16 +118,19 @@ module nexys4_pico_if (
                        decimal_point_upper
 );
 
-	reg [7:0]	RamOutput;		// This will be a combination of all potential RAM outputs
+    //reg [2:0]   ReadRqCnt = 0;
+	reg [7:0]	RamOutput = 0;		// This will be a combination of all potential RAM outputs
 
 	wire 	[7:0] valid_request;
-	assign valid_request = ((RAMAddress != `OUT_OF_BOUNDS) && (RamOutput == 0)) ? `VALID_FLAG : `INVALID_FLAG;
+	assign valid_request = ((OutOfBounds != `OUT_OF_BOUNDS) && (RamOutput == 0)) ? `VALID_FLAG : `INVALID_FLAG;
 	
 	
-	reg [7:0]	CursorCheck1;
-	reg [7:0]	CursorCheck2;
-	reg [7:0]	CursorCheck3;
-	reg [7:0]	CursorCheck4;
+	
+	//reg [7:0]	CursorCheck2;
+	//reg [7:0]	CursorCheck3;
+	//reg [7:0]	CursorCheck4;
+	
+	reg [7:0] OutOfBounds = 0;
 	
 
 	
@@ -139,8 +144,8 @@ module nexys4_pico_if (
 			valid_request <= INVALID_FLAG;
 	end*/
 
-	always @ (ReturnReadRAMValue) begin
-		RamOutput <= {RamOutput[5:0], 2'b00} | ReturnReadRAMValue;
+	always @ (posedge clk) begin
+		RamOutput <= RamOutput + ReturnReadRAMValue;
 	end
 
   /////////////////////////////////////////////////////////////////////////////////////////
@@ -164,17 +169,23 @@ module nexys4_pico_if (
         8'h05 : in_port <= {3'b000,dig1};
         8'h06 : in_port <= {3'b000,dig0};  
         8'h07 : in_port <= {4'b0000,decimal_point_lower};  
-        8'h08 : in_port <= 8'h00;  
+        8'h08 : in_port <= OutOfBounds;  
 		
 		// 0x09 Connection Established input
         `PA_CONN_EST : in_port <= {ConnEstablished,7'b0000000};	//conn established being sent to MSB in picoblaze
         
         // 0x0A and 0x0B are output address ports
-        8'h0A : in_port <= RAMAddress; //PA_CURSOR_CHECK  Read address to RAM
-        8'h0B : in_port <= RAMAddress; //PA_RAM_W_ADDR  Write address to RAM
+        8'h0A : begin
+            in_port <= Cursor; //PA_CURSOR_CHECK  Read address to RAM
+            //ReadRqCnt <= ReadRqCnt + 1;
+        end
+        8'h0B : in_port <= RAMWriteAddress; //PA_RAM_W_ADDR  Write address to RAM
         
         // 0x0C Return value from RAM
-        `PA_VALID_FLAG : in_port <= valid_request; //PA_VALID_FLAG  Space is valid for placing ship
+        `PA_VALID_FLAG : begin
+            in_port <= valid_request; //PA_VALID_FLAG  Space is valid for placing ship
+            RamOutput <= 0;
+        end
         
         // 0x0D - 0x0F are outputs
         8'h0D : in_port <= {7'b0000000,PlacementDone}; //PA_PLACE_DONE  Finished placing ships
@@ -198,10 +209,22 @@ module nexys4_pico_if (
         8'h19 : in_port <= 8'h00;	//currently not implemented
         
         // 0x1A - 0x1D are outputs
-        8'h1A : in_port <= CursorCheck1; //PA_SHIP_CHECK_1   
-        8'h1B : in_port <= CursorCheck2; //PA_SHIP_CHECK_2   
-        8'h1C : in_port <= CursorCheck3; //PA_SHIP_CHECK_3   
-        8'h1D : in_port <= CursorCheck4; //PA_SHIP_CHECK_4   
+        8'h1A : begin
+            in_port <= Cursor; //PA_SHIP_CHECK_1
+            //ReadRqCnt <= ReadRqCnt + 1;
+        end   
+        8'h1B : begin
+            in_port <= Cursor; //PA_SHIP_CHECK_2   
+            //ReadRqCnt <= ReadRqCnt + 1;
+        end
+        8'h1C : begin
+            in_port <= Cursor; //PA_SHIP_CHECK_3   
+            //ReadRqCnt <= ReadRqCnt + 1;
+        end
+        8'h1D : begin
+            in_port <= Cursor; //PA_SHIP_CHECK_4  
+            //ReadRqCnt <= ReadRqCnt + 1;
+        end 
         
         // 0x1E is not used.
         8'h1E : in_port <= 8'h00;
@@ -252,20 +275,20 @@ module nexys4_pico_if (
             `PA_DP: decimal_point_lower <= out_port[3:0]; //PA_DP  decimal points 3:0 port address
             
             // 0x08 RESERVED
-            8'h08: ; //RESERVED port address
+            `PA_OOB: OutOfBounds <= out_port; //Out of bounds flag
             
             // 0x09 is an input
             8'h09: ;	//PA_CONN_EST
             
             // 0x0A is a read RAM request for that address
             `PA_CURSOR_CHECK: begin 
-				RAMAddress <= out_port;		//PA_CURSOR_CHECK
-				RAMWriteEnable <= 1'b0;	// READ RAM
+                RAMWriteEnable <= 1'b0;	// READ RAM
+				Cursor <= out_port;		//PA_CURSOR_CHECK
 			end
 			
 			// 0x0B
             `PA_RAM_W_ADDR: begin
-				RAMAddress <= out_port;	//PA_RAM_W_ADDR
+				RAMWriteAddress <= out_port;	//PA_RAM_W_ADDR
 				RAMWriteEnable <= 1'b1;	// WRITE RAM
 			end
 			
@@ -310,10 +333,22 @@ module nexys4_pico_if (
             8'h19: ;  //
 			
 			// 0x1A - 0x1D are additional ship space checks
-			`PA_SHIP_CHECK_1: CursorCheck1 <= out_port;	//this might need to be changed
-			`PA_SHIP_CHECK_2: CursorCheck2 <= out_port;
-			`PA_SHIP_CHECK_3: CursorCheck3 <= out_port;
-			`PA_SHIP_CHECK_4: CursorCheck4 <= out_port;
+			`PA_SHIP_CHECK_1: begin
+			    RAMWriteEnable <= 1'b0;	// READ RAM
+			    Cursor <= out_port;	//this might need to be changed
+            end
+			`PA_SHIP_CHECK_2: begin
+				RAMWriteEnable <= 1'b0;	// READ RAM
+			    Cursor <= out_port;
+            end
+			`PA_SHIP_CHECK_3: begin
+			     RAMWriteEnable <= 1'b0;	// READ RAM
+			     Cursor <= out_port;
+             end
+			`PA_SHIP_CHECK_4:begin
+			     RAMWriteEnable <= 1'b0;	// READ RAM
+			     Cursor <= out_port;
+             end
             
             // 0x1A through 0x1F are inputs
         
