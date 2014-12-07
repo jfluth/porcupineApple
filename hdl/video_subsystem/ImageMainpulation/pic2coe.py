@@ -34,7 +34,7 @@ def Convert (ImageName):
 	
 	#	resize as directed
 	#img = img.resize((outWidth,outHeight),Image.ANTIALIAS)
-	img.save('resized_'+ImageName, 'png')
+	#img.save('resized_'+ImageName, 'png')
 	
 	# Verify that the image is in the 'RGB' mode, every pixel is described by 
 	# three bytes

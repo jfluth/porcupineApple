@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module paint_screen_test (
+module dynamic_screen_test (
 
 
 	///////////////////////////////////////////////////////////////////////////
@@ -160,19 +160,17 @@ module paint_screen_test (
 	// Instantiate video subsystem
 	///////////////////////////////////////////////////////////////////////////
 
-	paint_screen #(/* No parameters in this module */)
-	paintScreen (
+	dynamic_screen #(/* No parameters in this module */)
+	dynamicScreen (
 		.clk			(clk),
 		.rst			(sysreset),
 		.pixel_x		(pixCol),
 		.pixel_y		(pixRow),
 		.vid_on			(vidOn),
-		//.tile_data		(4'b0),
-		//.icon_data		(iconData),
-		//.tile_address	(),
-		//.icon_address	(),
-		//.screen_address	(screenAddress),
-		//.ROM_select		(),
+		.us_ram_addr    (),//NC for testing
+		.them_ram_addr  (),//NC for testing
+		.us_ram_data    (2'b00),
+		.them_ram_data  (2'b01),
 		.screen_color	({vgaRed,vgaGreen,vgaBlue})
 	);
 	
