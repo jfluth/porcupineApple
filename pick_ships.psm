@@ -67,7 +67,7 @@ CONSTANT	PA_CONN_EST,	09		; (i) Connect has been established
 CONSTANT	PA_CURSOR_CHECK,0A		; (o) Read/Write address request to block RAM
 CONSTANT	PA_PLACE_SHIP,	0B		; (o) Write to block RAM ship placement location
 CONSTANT	PA_VALID_FLAG,	0C		; (i) Requested data from RAM returned back, position is valid or not
-CONSTANT	PA_PLACE_DONE,	0D		; (o) Ship placement completed signal
+CONSTANT	PA_RAM_W_ADDR,	0D		; (o) Ship placement completed signal
 CONSTANT	PA_ORIEN,		0E		; (o) Orientation output
 CONSTANT	PA_SHIP_INFO,	0F		; (o) Ship Info output
 
@@ -81,16 +81,16 @@ CONSTANT	PA_DIG6,		14		; (o) digit 6 port address
 CONSTANT	PA_DIG5,		15		; (o) digit 5 port address
 CONSTANT	PA_DIG4,		16		; (o) digit 4 port address
 CONSTANT	PA_DP0704,		17		; (o) decimal points 7:4 port address
-CONSTANT	PA_RSVD_ALT,	18		; (o) *RESERVED* alternate port address
+CONSTANT	PA_RAM_W_VAL,	18		; (o) *RESERVED* alternate port address
 
 ; Extended Rojobot interface registers.  These are alternate Port addresses
-CONSTANT	PA_SHIP_CHECK_0,	19	; (o) Request to RAM to verify position is valid or not
+CONSTANT	PA_DATA_RX,			19	; (i) Data to read in from the RAM
 CONSTANT	PA_SHIP_CHECK_1,	1A	; (o) Request to RAM to verify position is valid or not
 CONSTANT	PA_SHIP_CHECK_2,	1B	; (o))Request to RAM to verify position is valid or not
 CONSTANT	PA_SHIP_CHECK_3,	1C	; (o) Request to RAM to verify position is valid or not
 CONSTANT	PA_SHIP_CHECK_4,	1D	; (o) Request to RAM to verify position is valid or not
-CONSTANT	PA_DATA,			1E	; (i/o) Rojobot left motor distance register
-CONSTANT	PA_ADDR_OUT,		1F	; (o) Rojobot right motor distance register
+CONSTANT	PA_DATA_TX,			1E	; (o) Data to write out to the RAM
+CONSTANT	PA_DATA_RAM,		1F	; (i) Address of data in the RAM
 
 
 ; =====================================
@@ -267,13 +267,20 @@ CONSTANT	MSKORIENT,	07			; Mask out all but orientation bits
 ;========== JF CONSTANTS ================
 ;
 ;=========================================
-CONSTANT 	HIT, 			10
-CONSTANT 	MISS, 			00
-CONSTANT 	LOSE, 			FF
+CONSTANT 	RAM_EMPTY,  		00
+CONSTANT 	RAM_MISS, 			01
+CONSTANT 	RAM_HIT, 			02
+CONSTANT 	RAM_SHIP, 			03
 
-CONSTANT 	HIT_CODE, 		10
-CONSTANT 	MISS_CODE, 		00
-CONSTANT 	LOSE_CODE, 		FF
+
+CONSTANT 	MISS_CODE, 			01
+CONSTANT 	HIT_CODE, 			02
+CONSTANT 	SHIP_CODE, 			03
+CONSTANT 	LOSE_CODE, 			FF
+
+CONSTANT 	MAX_HITS, 			11
+CONSTANT 	DATA_READY_MASK, 	40
+
 
 ; =================================
 ; === Scratch Pad RAM Variables ===
@@ -356,8 +363,10 @@ CONSTANT  SP_OLDX,    37  ; Old LocX value
 CONSTANT  SP_OLDY,    38  ; Old LocY value
 
 CONSTANT  SP_GAME_STATE, 	39
-CONSTANT  SP_PLAYER_NUMBER, 40
-CONSTANT  SP_GUESS, 		41
+CONSTANT  SP_PLAYER_NUMBER, 3A
+CONSTANT  SP_GUESS, 		3B
+CONSTANT  SP_HIT_COUNT, 	3C
+
 CONSTANT  SP_PLAYER_ONE,    01
 CONSTANT  SP_PLAYER_TWO,    02
 CONSTANT  SP_SENDING, 		01
@@ -367,7 +376,7 @@ CONSTANT  SP_SEND_ACK, 		04
 CONSTANT  SP_RCVE_ACK, 		05
 CONSTANT  SP_RCVE_RESULT, 	06
 
-CONSTANT ACK, 				FF
+CONSTANT  ACK, 				FF
 
 ; ===============
 ; === main()  ===
@@ -1125,7 +1134,7 @@ SET_PLAYER_TWO: LOAD  s0, 	SP_PLAYER_TWO
 ;=======================  TURN FUNCTIONALITY   =================================
 ;
 ;===============================================================================
-TURN:			LOAD 	s0, 	PA_PLACE_DONE    ; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
+TURN:			LOAD 	s0, 	PA_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
 				COMPARE s0, 	01
 				JUMP 	NZ, 	ERROR
 
@@ -1195,76 +1204,98 @@ RIGHT:			LOAD 	s0, 	Cursor
 				RETURN
 
 SEND_GUESS:		LOAD 	s0, 	Cursor
-				OUTPUT 	s0, 	PA_ADDR_OUT 		; GET THE CURRENT CURSOR POSITION
-				INPUT 	s1, 	PA_DATA 	 		; GET THE DATA IN THAT RAM LOCATION
-				;COMPARE s1, 	GUESSED_LOCATION 	; CHECK TO SEE IF ITS ALREADY BEEN GUESSED
-				STORE  	s0,	 	SP_GUESS
-				OUTPUT 	s0, 	PA_DATA 		  	; SEND THE GUESS
+				OUTPUT 	s0, 	PA_RAM_W_ADDR 		; GET THE CURRENT CURSOR POSITION
+				INPUT 	s1, 	PA_DATA_RAM	 		; GET THE DATA IN THAT RAM LOCATION
+				COMPARE s1, 	MISS 			 	; CHECK TO SEE IF ITS ALREADY BEEN GUESSED
+				JUMP 	Z, 		ERROR 				; LOCATION ALREADY GUESSED
+				STORE  	s0,	 	SP_GUESS 			
+				OUTPUT 	s0, 	PA_DATA_TX 			; SEND THE GUESS
 
-				; NEED TO UPDATE GUESSES...
-
-				LOAD 	s0, 	SP_RECEIVING
-				STORE 	s0, 	SP_GAME_STATE; UPDATE THE GAME STATE
+				LOAD 	s0, 	SP_RCVE_RESULT
+				STORE 	s0, 	SP_GAME_STATE 		; UPDATE THE GAME STATE
 				RETURN
 
-RECEIVE_GUESS:	INPUT 	s0, 	PA_DATA 	 		; GET THE GUESS FROM THE OTHER PLAYER
-				LOAD 	s1, 	s0
-				OUTPUT 	s1, 	PA_ADDR_OUT 	 	; SEND THE XY TO THE RAM
-				INPUT 	s0, 	PA_DATA 	 		; READ DATA AT THAT LOCATION
-				; SIGNAL A READ???
+RECEIVE_GUESS:	INPUT 	s0, 	PA_CONN_EST
+				AND 	s0, 	DATA_READY_MASK
+				COMPARE s0, 	DATA_READY_MASK
+				JUMP 	NZ, 	RECEIVE_GUESS
 
-				COMPARE s0, 	HIT_CODE
+				INPUT 	s0, 	PA_DATA_RX 	 		; GET THE GUESS FROM THE OTHER PLAYER
+				LOAD 	s1, 	s0
+				OUTPUT 	s1, 	PA_RAM_W_ADDR 	 	; SEND THE XY TO THE RAM
+				INPUT 	s0, 	PA_DATA_RAM	 		; READ DATA AT THAT LOCATION
+
+				COMPARE s0, 	RAM_SHIP
 				JUMP 	Z, 		MARK_HIT
-				COMPARE s0, 	MISS_CODE
+				COMPARE s0, 	RAM_EMPTY
 				JUMP 	Z, 		MARK_MISS
-				COMPARE s0, 	LOSE_CODE
-				JUMP 	Z, 		MARK_LOSE
 				JUMP ERROR 
 
-MARK_HIT:		LOAD 	s0, 	HIT 
+MARK_HIT:		FETCH 	s0, 	SP_HIT_COUNT
+				ADD 	s0, 	01
+				STORE 	s0, 	SP_HIT_COUNT
+				COMPARE s0, 	MAX_HITS
+				JUMP 	Z, 		MARK LOSE
+				LOAD 	s0, 	RAM_HIT 
 				JUMP 	SEND_MARK
 
-MARK_MISS:		LOAD 	s0, 	MISS 
+MARK_MISS:		LOAD 	s0, 	RAM_MISS 
 				JUMP 	SEND_MARK
 
-MARK_LOSE: 		LOAD 	s0, 	LOSE 
-				JUMP 	SEND_MARK
+MARK_LOSE: 		LOAD 	s0, 	LOSE_CODE
+				OUTPUT 	s0, 	PA_DATA_TX
+				JUMP 	GAME_OVER
 
-SEND_MARK: 		OUTPUT 	s0, 	PA_DATA
-				LOAD 	s0, 	SP_RCVE_RESULT	; UPDATE THE GAME STATE
+SEND_MARK: 		OUTPUT 	s0, 	PA_DATA_TX
+				LOAD 	s0, 	SP_RCVE_ACK		; UPDATE THE GAME STATE
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
 
-RCVE_RESULT: 	INPUT 	s0, 	PA_DATA
-				LOAD 	s1, 	SP_GUESS
-				OUTPUT 	s1, 	PA_ADDR_OUT
-				OUTPUT 	s0, 	PA_DATA
-				LOAD 	s0, 	SP_SEND_ACK		; UPDATE THE GAME STATE
+RCVE_RESULT: 	INPUT 	s0, 	PA_CONN_EST
+				AND 	s0, 	DATA_READY_MASK
+				COMPARE s0, 	DATA_READY_MASK
+				JUMP 	NZ, 	RCVE_RESULT
+
+				INPUT 	s0, 	PA_DATA_RX 			; READ THE RESPONSE
+				COMPARE s0, 	LOSE_CODE 			; CHECK IF END OF GAME
+				JUMP 	Z, 		GAME_OVER 			; INFINITE LOOP IF FINISHED
+
+				FETCH 	s1, 	SP_GUESS 			; GET THE RAM ADDRESS
+				OUTPUT 	s0, 	PA_RAM_W_VAL 		; VALUE OUT TO RAM
+				OUTPUT 	s1, 	PA_RAM_W_ADDR 		; RAM ADDRESS
+				LOAD 	s0, 	SP_SEND_ACK			; UPDATE THE GAME STATE
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN  
 
-SEND_ACK: 		LOAD 	s0, 	ACK
-				OUTPUT 	s0, 	PA_DATA
-				LOAD 	s0, 	SP_RECEIVING	; UPDATE THE GAME STATE
+SEND_ACK: 		LOAD 	s0, 	ACK 				; LOAD THE ACK CODE
+				OUTPUT 	s0, 	PA_DATA_TX			; SEND THE ACK
+				LOAD 	s0, 	SP_RECEIVING		; UPDATE THE GAME STATE
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN 
 
-RCVE_ACK: 		INPUT 	s0, 	PA_DATA
+RCVE_ACK: 		INPUT 	s0, 	PA_CONN_EST
+				AND 	s0, 	DATA_READY_MASK
+				COMPARE s0, 	DATA_READY_MASK
+				JUMP 	NZ, 	RCVE_ACK
+
+				INPUT 	s0, 	PA_DATA_RX 			
 				COMPARE s0, 	ACK
 				JUMP 	NZ, 	NOT_ACKED
 				JUMP 	Z, 		ACKED
 				JUMP 	ERROR
 
-NOT_ACKED: 		LOAD 	s0, 	SP_RCVE_ACK 	; UPDATE THE GAME STATE
+NOT_ACKED: 		LOAD 	s0, 	SP_RCVE_ACK 		; UPDATE THE GAME STATE
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
-ACKED: 			LOAD 	s0, 	SP_SENDING 		; UPDATE THE GAME STATE
+ACKED: 			LOAD 	s0, 	SP_SENDING 			; UPDATE THE GAME STATE
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
 ERROR:			RETURN
+
+GAME_OVER: 		JUMP GAME_OVER 						; INFINITE LOOP
 
 
 ;===============================================================================
