@@ -24,8 +24,13 @@ module dynamic_screen(
     input      [9:0]  pixel_x,
     input      [9:0]  pixel_y,
     input             vid_on,
+	
+	input             ghost_ship,
+	input      [3:0]  cursor,
+	
 	input      [1:0]  us_ram_data, //-PWL this will have to get wider if we add nice ship display
 	input      [1:0]  them_ram_data,
+	
 	output reg [9:0]  us_ram_addr,
 	output reg [9:0]  them_ram_addr,
 	output reg [11:0] screen_color
@@ -33,7 +38,7 @@ module dynamic_screen(
 	
 	
 	// named stuff that can be in a tile
-	// future ship nice ship encodings included
+	// future nice ship encodings included
 	// also would be nice to have hit or miss show
 	// up on a ship (currently it shows instead of ship)
 	//
@@ -42,23 +47,11 @@ module dynamic_screen(
 	                  MISS	= 7'd2,
 					  SHIP	= 7'd3;
 					  
-	localparam  [4:0] ACC_0	= 7'd0,
-					  ACC_1	= 7'd1,
-					  ACC_2	= 7'd2,
-					  ACC_3	= 7'd3,
-					  ACC_4	= 7'd4,
-					  BS_0	= 7'd5,
-					  BS_1	= 7'd6,
-					  BS_2	= 7'd7,
-					  BS_3	= 7'd8,
-					  DES_0	= 7'd9,
-					  DES_1	= 7'd10,
-					  DES_2	= 7'd11,
-					  SUB_0	= 7'd12,
-					  SUB_1	= 7'd13,
-					  SUB_2	= 7'd14,
-					  PT_0	= 7'd15,
-					  PT_1	= 7'd16;
+	localparam  [4:0] ACC_0	= 7'd0,  ACC_1 = 7'd1,  ACC_2 = 7'd2,  ACC_3 = 7'd3, ACC_4 = 7'd4,
+					  BS_0	= 7'd5,  BS_1  = 7'd6,  BS_2  = 7'd7,  BS_3  = 7'd8,
+					  DES_0	= 7'd9,  DES_1 = 7'd10, DES_2 = 7'd11, 
+					  SUB_0	= 7'd12, SUB_1 = 7'd13, SUB_2 = 7'd14,
+					  PT_0	= 7'd15, PT_1  = 7'd16;
 
 	localparam [11:0] RED   = 12'hF00,
 					  WHITE = 12'hEEE,
@@ -70,22 +63,26 @@ module dynamic_screen(
 	reg  [4:0]  tile_rom_x;
 	reg  [4:0]  tile_rom_y;
 	reg  [9:0]  tile_rom_addr;
+	
 	wire [11:0] us_rom_data;
 	wire [11:0] them_rom_data;
 	wire [11:0] hit_rom_data;
 	wire [11:0] miss_rom_data;
 	wire [11:0] ship_rom_data;
 	
-	reg  [6:0]  us_ram_x;
-	reg  [6:0]  us_ram_y;
-	reg  [6:0]  them_ram_x;
-	reg  [6:0]  them_ram_y;
+	reg  [9:0]  us_ram_x;
+	reg  [9:0]  us_ram_y;
+	reg  [9:0]  them_ram_x;
+	reg  [9:0]  them_ram_y;
 	
 	reg  [15:0] logo_rom_x;
 	reg  [15:0] logo_rom_y;
 	reg  [15:0] logo_rom_addr;
 	wire [11:0] logo_rom_data;
 	reg  [9:0]  temp_y;
+	
+	reg  [9:0]  cursor_x;
+	reg  [9:0]  cursor_y;
 	
 	// if we are in the tiles screen region
 	// look up what is in what tile and paint it
@@ -100,33 +97,53 @@ module dynamic_screen(
 			tile_rom_addr <= {tile_rom_y, tile_rom_x};
 			
 			temp_y        <= (pixel_y - 10'd100);
-			us_ram_x      <= {2'b0, pixel_x[9:5]};
+			us_ram_x      <= {5'b0, pixel_x[9:5]};
 			us_ram_y      <= {2'b0, temp_y[9:5]} * 4'd10;
 			us_ram_addr   <= us_ram_x + us_ram_y;
 			
-			them_ram_x    <= {2'b0, (pixel_x[9:5] - 5'd10)};
-			them_ram_y    <= {2'b0, temp_y[9:5]} * 4'd10;
+			them_ram_x    <= {5'b0, (pixel_x[9:5] - 5'd10)};
+			them_ram_y    <= {5'b0, temp_y[9:5]} * 4'd10;
 			them_ram_addr <= them_ram_x + them_ram_y;
+			
+			// get current cursor position
+			cursor_x      <= {6'b0, cursor[7:4]};
+			cursor_y      <= {6'b0, cursor[3:0]};
 			
             if (pixel_x < 320) begin
 				// we are in tiles_us region
-				case (us_ram_data)
-					HIT:     begin screen_color <= hit_rom_data;  end
-					MISS:    begin screen_color <= miss_rom_data; end
-					SHIP:    begin screen_color <= ship_rom_data; end
-					EMPTY:   begin screen_color <= us_rom_data;   end
-					default: begin screen_color <= us_rom_data;   end
-				endcase
-				
+				// paint the cursor if needed
+				if ({cursor_x,cursor_y} == {us_ram_x,us_ram_y}) begin
+					screen_color <= YELLOW;
+				// paint the ship being activle placed
+				end else if (ghost_ship) begin
+					screen_color <= ship_rom_data;
+				// no special cases left, paint current occupant of the tile
+				end else
+					case (us_ram_data)
+						HIT:     begin screen_color <= hit_rom_data;  end
+						MISS:    begin screen_color <= miss_rom_data; end
+						SHIP:    begin screen_color <= ship_rom_data; end
+						EMPTY:   begin screen_color <= us_rom_data;   end
+						default: begin screen_color <= us_rom_data;   end
+					endcase
+				end
             end else begin
 				//we are in tiles_them region
-				case (them_ram_data)
-					HIT:     begin screen_color <= hit_rom_data;  end
-					MISS:    begin screen_color <= miss_rom_data; end
-					SHIP:    begin screen_color <= ship_rom_data; end
-					EMPTY:   begin screen_color <= them_rom_data; end
-					default: begin screen_color <= them_rom_data; end
-				endcase
+				// paint the cursor if needed
+				if ({cursor_x,cursor_y} == {them_ram_x,them_ram_y}) begin
+					screen_color <= YELLOW;
+				// paint the ship being activle placed
+				end else if (ghost_ship)  begin
+					screen_color <= ship_rom_data;
+				// no special cases left, paint current occupant of the tile
+				end	else
+					case (them_ram_data)
+						HIT:     begin screen_color <= hit_rom_data;  end
+						MISS:    begin screen_color <= miss_rom_data; end
+						SHIP:    begin screen_color <= ship_rom_data; end
+						EMPTY:   begin screen_color <= them_rom_data; end
+						default: begin screen_color <= them_rom_data; end
+					endcase
             end  
 		end else if (pixel_y < 100) begin
 			// we are in logo region
@@ -143,43 +160,6 @@ module dynamic_screen(
 	end
 
 
-
-
-
-
-
-
-			
-/*			// set tile_RAM_Addr
-			tile_y <= ((pixel_y - 10'd100) >> 3'd5) * 4'd10;
-			tile_RAM_addr <= {tile_y[4:0],tile_x};
-			
-			// get tile_RAM_data
-			tile_status <= tile_RAM_data;
-			
-			
-			// if Andrew signals that there
-			// is a temp ship placement going on,
-			// paint what he says to paint 
-			// otherwise, fall down to the below stuff
-			// will need new module inputs to accommodate
-			// this
-			
-			// switch on tile status to decide how to paint screen
-			case (tile_status)
-				HIT:     begin screen_color <= RED;   end
-				MISS:    begin screen_color <= WHITE; end
-				SHIP:    begin screen_color <= GREY;  end
-				default: begin screen_color <= CLEAR; end
-			endcase
-		end else begin
-			screen_color <= CLEAR;
-		
-		
-		
-		end
-	end
-*/	
 
 	///////////////////////////////////////////////////////////////////////////	
 	// Instantiate tile us ROM
