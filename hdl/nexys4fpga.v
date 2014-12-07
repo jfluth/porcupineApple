@@ -106,7 +106,7 @@ module Nexys4fpga (
 	assign dp = segs_int[7];
 	assign seg = segs_int[6:0];
 	
-	assign	JA = {sysclk, sysreset, 6'b000000};
+	assign	JA = {6'b000000, TxD, RxD};
 	
 	//instantiate the debounce module
 	debounce
@@ -274,7 +274,7 @@ module Nexys4fpga (
   
   
 	wire ConnEstablished;
-	assign ConnEstablished = 1'b1;	//For testing purposes
+//	assign ConnEstablished = 1'b1;	//For testing purposes
 	
 	wire [7:0] RAMAddress;
 	wire [1:0] RAMReadVal;	// assign this as output from the dual port RAM
@@ -299,7 +299,55 @@ module Nexys4fpga (
 		.addrb(RAMAddress),
 		.doutb(RAMReadVal)
 	);
+    //
+    // Connection module
+    // Instantiate the Unit Under Test (UUT)
+
+    wire        RxD, TxD;  // XBee serial connection wires
+    wire [7:0]  XBDataIn, XBDataOut;
+    wire        XBDataSend, XBDataRdy;
+
+    wire [7:0]  ConnDataOut, IntDataOut;
+    wire        ConnDataSend, IntDataSend;
+
+    assign  XBDataIn = (ConnEstablished)? IntDataOut : ConnDataOut;
+    assign  XBDataSend = (ConnEstablished)? IntDataSend : ConnDataSend; 
+    
+    wire [7:0]  ConnDataIn, ConnDataOut;
+    wire        ConnDataSend, ConnDataRdy;
+    connect #(.RESET_POLARITY_LOW(1)) c1 (
+            .clk(sysclk),
+            .reset(sysreset),
+            .DataIn(XBDataOut),   // output of xmitter goes into input of receiver
+            .DataRdy(XBDataRdy),
+            .DataOut(ConnDataOut),
+            .send_data(ConnDataSend),
+            .ConnEstablished(ConnEstablished)
+            );
 	
+    xbee 
+    #(
+        .BAUD(BAUD), 
+        .DATA_WIDTH(DATA_WIDTH),
+        .CLKFREQ(CLKFREQ),        // Nexys 4 oscillator clk
+        .RESET_POLARITY_LOW(RESET_POLARITY_LOW)
+    )
+    xb1
+    (
+        .clk(sysclk),
+        .reset(sysreset),
+        .DataIn(XBDataIn),     //
+        .send_data(XBDataSend),  // 
+        .read_data(1),           // used for FIFO operation
+        .RxD(RxD),     
+        .DataOut(XBDataOut),     
+    //    .DataOut(led[7:0]),  
+        .TxD(TxD), 
+        .DataRdy(XBDataRdy)    
+    );
+
+
+
 	reg [14:0] counter = 0;
 	reg slow_int = 0;
 	
@@ -345,6 +393,10 @@ module Nexys4fpga (
 		.Orientation(Orientation),	//icon TBD
 		.ShipInfo(ShipInfo),		//icon TBD
 		
+        .dataOUt(IntDataOut),
+        .dataSend(IntDataSend),
+        .dataIn(XBDataIn),
+        .dataRdy(XBDataRdy),
 		
         
         .interrupt(interrupt),       //send interrupt to PicoBlaze
