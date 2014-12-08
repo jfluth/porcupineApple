@@ -350,10 +350,10 @@ CONSTANT	SP_MVMTF,		1C		; Fast right turn - display lower case R
 CONSTANT	SP_SEM,			20		; Semaphore between isr and main loop
 CONSTANT	SP_TEMP1,		21		; Temp storage.  Used by ISR
 CONSTANT	SP_TEMP2,		22		;
-CONSTANT	SP_LMDIST,		23		; Storage for left and right motor distance counters
-CONSTANT	SP_RMDIST,		24		;
-CONSTANT	SP_OLDMVMT,		25		; Old movement value 
-CONSTANT	SP_OLDHDG,		26		; Old heading value
+;CONSTANT	SP_LMDIST,		23		; Storage for left and right motor distance counters
+;CONSTANT	SP_RMDIST,		24		;
+;CONSTANT	SP_OLDMVMT,		25		; Old movement value 
+;CONSTANT	SP_OLDHDG,		26		; Old heading value
 CONSTANT	SP_OLDDP,		27		; Old decimal points
 
 ; =========================
@@ -376,13 +376,14 @@ CONSTANT  SP_OOB,     37  ; Out of bounds value
 CONSTANT  SP_PLACE_DONE,    38  ; Done placing
 
 
-CONSTANT  SP_GAME_STATE, 	39
-CONSTANT  SP_PLAYER_NUMBER, 3A
-CONSTANT  SP_GUESS, 		3B
-CONSTANT  SP_HIT_COUNT, 	3C
+CONSTANT  SP_GAME_STATE, 	23
+CONSTANT  SP_PLAYER_NUMBER, 24
+CONSTANT  SP_GUESS, 		25
+CONSTANT  SP_HIT_COUNT, 	26
 
 CONSTANT  SP_PLAYER_ONE,    01
 CONSTANT  SP_PLAYER_TWO,    02
+
 CONSTANT  SP_SENDING, 		01
 CONSTANT  SP_READ_BTNS,		02
 CONSTANT  SP_RECEIVING,     03
@@ -401,7 +402,8 @@ ADDRESS	000
 				JUMP	main						; Ken Chapman and is known to be in 2014.2
 				JUMP	main						; Address 003 can be corrupted by Vivado HW manager
 													;
-main:			INPUT 	s0, 	PA_SLSWTCH
+main:			LOAD 	s0, 	PA_SLSWTCH
+				OUTPUT 	s0, 	PA_LEDS1508
 				COMPARE s0, 	MSK_SW0
 				CALL 	Z, 		SET_PLAYER_ONE
 				CALL 	NZ, 	SET_PLAYER_TWO
@@ -1168,18 +1170,18 @@ DISP_X_Y:		LOAD		s0,		Cursor				; Dig[3:2] gets X-coordinate
 ;===============================================================================
 SET_PLAYER_ONE: LOAD  s0, 	SP_PLAYER_ONE
 				STORE s0,	SP_PLAYER_NUMBER
-				LOAD 	s0, 			SP_READ_BTNS
+				LOAD 	s0, 			SP_RECEIVING
 				STORE 	s0, 			SP_GAME_STATE
 				LOAD 	s0, 			80
-				OUTPUT 	s0, 			PA_LEDS1508
+				;OUTPUT 	s0, 			PA_LEDS1508
 				RETURN
 
 SET_PLAYER_TWO: LOAD  s0, 	SP_PLAYER_TWO
 				STORE s0,	SP_PLAYER_NUMBER
-				LOAD 	s0, 			SP_RECEIVING
+				LOAD 	s0, 			SP_READ_BTNS
 				STORE 	s0, 			SP_GAME_STATE
-				LOAD 	s0, 			40
-				OUTPUT 	s0, 			PA_LEDS1508
+				LOAD 	s0, 			E0
+				;OUTPUT 	s0, 			PA_LEDS1508
 				RETURN
 
 ;===============================================================================
@@ -1195,6 +1197,7 @@ TURN:			FETCH 	s0, 	SP_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
 
 				; GO TO THE RIGHT STATE
 				FETCH 	s0, 	SP_GAME_STATE
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				COMPARE s0, 	SP_READ_BTNS 
 				JUMP 	Z, 		READBTN
 				COMPARE s0,	 	SP_SENDING
@@ -1210,27 +1213,31 @@ TURN:			FETCH 	s0, 	SP_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
 				JUMP 	ERROR
 
 
-READBTN:		CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
-				CALL	btn2mot						; and calculate new MotCtl - returned in s1
+READBTN:		;CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
+				;CALL	btn2mot						; and calculate new MotCtl - returned in s1
 
-				COMPARE s1, 	MSK_BTN_UP
+				LOAD	s0, But_input		; Read button input
+				AND		s0, MSK_ALLBTNS		; Mask out just the buttons
+				COMPARE	s0, MSK_BTN_UP		; See if only the up button was pressed
+
+				COMPARE s0, 	MSK_BTN_UP
 				JUMP 	Z,		UP 	
-				COMPARE s1, 	MSK_BTN_DOWN
+				COMPARE s0, 	MSK_BTN_DOWN
 				JUMP 	Z,		DOWN 
-				COMPARE s1, 	MSK_BTN_LEFT
+				COMPARE s0, 	MSK_BTN_LEFT
 				JUMP 	Z,		LEFT 														
-				COMPARE s1, 	MSK_BTN_RIGHT
+				COMPARE s0, 	MSK_BTN_RIGHT
 				JUMP 	Z,		RIGHT 
-				COMPARE s1, 	MSK_BTN_CENTER
+				COMPARE s0, 	MSK_BTN_CENTER
 				JUMP 	Z,		SEND_GUESS
 				JUMP 	ERROR 
-
 
 UP:				LOAD 	s0, 	Cursor
 				COMPARE s0, 	MIN_Y
 				JUMP 	Z, 		ERROR
 				SUB 	Cursor, INC_Y
 				LOAD 	s0, 	SP_READ_BTNS
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
@@ -1239,6 +1246,7 @@ DOWN:			LOAD 	s0, 	Cursor
 				JUMP 	Z, 		ERROR
 				ADD 	Cursor, INC_Y
 				LOAD 	s0, 	SP_READ_BTNS
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
@@ -1247,6 +1255,7 @@ LEFT:			LOAD 	s0, 	Cursor
 				JUMP 	Z, 		ERROR
 				SUB 	Cursor, INC_X
 				LOAD 	s0, 	SP_READ_BTNS
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
@@ -1255,6 +1264,7 @@ RIGHT:			LOAD 	s0, 	Cursor
 				JUMP 	Z, 		ERROR
 				ADD 	Cursor, INC_X
 				LOAD 	s0, 	SP_READ_BTNS
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
@@ -1267,6 +1277,7 @@ SEND_GUESS:		LOAD 	s0, 	Cursor
 				OUTPUT 	s0, 	PA_DATA_TX 			; SEND THE GUESS
 
 				LOAD 	s0, 	SP_RCVE_RESULT
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE 		; UPDATE THE GAME STATE
 				RETURN
 
@@ -1303,6 +1314,7 @@ MARK_LOSE: 		LOAD 	s0, 	LOSE_CODE
 
 SEND_MARK: 		OUTPUT 	s0, 	PA_DATA_TX
 				LOAD 	s0, 	SP_RCVE_ACK		; UPDATE THE GAME STATE
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
@@ -1326,6 +1338,7 @@ RCVE_RESULT: 	INPUT 	s0, 	PA_CONN_EST
 SEND_ACK: 		LOAD 	s0, 	ACK 				; LOAD THE ACK CODE
 				OUTPUT 	s0, 	PA_DATA_TX			; SEND THE ACK
 				LOAD 	s0, 	SP_RECEIVING		; UPDATE THE GAME STATE
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN 
 
@@ -1341,10 +1354,12 @@ RCVE_ACK: 		INPUT 	s0, 	PA_CONN_EST
 				JUMP 	ERROR
 
 NOT_ACKED: 		LOAD 	s0, 	SP_RCVE_ACK 		; UPDATE THE GAME STATE
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
-ACKED: 			LOAD 	s0, 	SP_SENDING 			; UPDATE THE GAME STATE
+ACKED: 			LOAD 	s0, 	SP_READ_BTNS 		; UPDATE THE GAME STATE
+				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
