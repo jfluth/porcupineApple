@@ -321,7 +321,7 @@ module Nexys4fpga (
       .clka  (clk),
       .wea   (ThemRAMWriteEnable),
       .addra (ThemRAMAddress),
-      .dina  (ThemRAMWriteVal),
+      .dina  ({2'b00,ThemRAMWriteVal}),
       .douta (ThemRAMReadValExt),
       
       .clkb  (clk),
