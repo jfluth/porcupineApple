@@ -26,7 +26,7 @@ module dynamic_screen(
     input             vid_on,
 	
 	input             ghost_ship,
-	input      [3:0]  cursor,
+	input      [7:0]  cursor,
 	
 	input      [1:0]  us_ram_data, //-PWL this will have to get wider if we add nice ship display
 	input      [1:0]  them_ram_data,
@@ -57,6 +57,7 @@ module dynamic_screen(
 					  WHITE = 12'hEEE,
 					  GREY  = 12'h888,
 					  CYAN  = 12'h000,
+					  YELLOW = 12'hFF0,
 					  CLEAR = 12'h000;
 				
 	//reg  [1:0]  tile_status; //-PWL this will have to get wider if we add nice ship display
@@ -89,7 +90,8 @@ module dynamic_screen(
     always @(posedge clk) begin
 		if (~vid_on) begin
 			screen_color <= RED; // debug, If you see red, PWL messed something up!
-		end else if ((pixel_y > 96) && (pixel_y < 416)) begin
+		end 
+		else if ((pixel_y > 96) && (pixel_y < 416)) begin
 			// we are in tiles region
 			// calculate the memory indices and addresses
 			tile_rom_x    <= pixel_x[4:0];
@@ -115,10 +117,12 @@ module dynamic_screen(
 				if ({cursor_x,cursor_y} == {us_ram_x,us_ram_y}) begin
 					screen_color <= YELLOW;
 				// paint the ship being activle placed
-				end else if (ghost_ship) begin
+				end 
+				else if (ghost_ship) begin
 					screen_color <= ship_rom_data;
 				// no special cases left, paint current occupant of the tile
-				end else
+				end 
+				else begin
 					case (us_ram_data)
 						HIT:     begin screen_color <= hit_rom_data;  end
 						MISS:    begin screen_color <= miss_rom_data; end
@@ -127,16 +131,19 @@ module dynamic_screen(
 						default: begin screen_color <= us_rom_data;   end
 					endcase
 				end
-            end else begin
+            end 
+			else begin
 				//we are in tiles_them region
 				// paint the cursor if needed
 				if ({cursor_x,cursor_y} == {them_ram_x,them_ram_y}) begin
 					screen_color <= YELLOW;
 				// paint the ship being activle placed
-				end else if (ghost_ship)  begin
+				end 
+				else if (ghost_ship)  begin
 					screen_color <= ship_rom_data;
 				// no special cases left, paint current occupant of the tile
-				end	else
+				end	
+				else begin
 					case (them_ram_data)
 						HIT:     begin screen_color <= hit_rom_data;  end
 						MISS:    begin screen_color <= miss_rom_data; end
@@ -144,8 +151,10 @@ module dynamic_screen(
 						EMPTY:   begin screen_color <= them_rom_data; end
 						default: begin screen_color <= them_rom_data; end
 					endcase
+				end
             end  
-		end else if (pixel_y < 100) begin
+		end 
+		else if (pixel_y < 100) begin
 			// we are in logo region
 			// calculate the memory indices and addresses
 			logo_rom_x <= pixel_x;
@@ -153,7 +162,8 @@ module dynamic_screen(
 			logo_rom_addr <= logo_rom_x + logo_rom_y;
 			screen_color <= logo_rom_data;
 				
-		end else begin
+		end 
+		else begin
 			// we are in the bottom region
 			screen_color <= CYAN;
 		end

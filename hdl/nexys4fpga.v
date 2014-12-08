@@ -95,10 +95,7 @@ module Nexys4fpga (
     
     wire [15:0] leds;
     
-    wire	[9:0]	pixCol;
-    wire    [9:0]   pixRow;
-    wire			pixClock;
-    wire            vidOn;    
+
     
 	assign	led = leds;			// leds show bot sensor information
 
@@ -266,23 +263,25 @@ module Nexys4fpga (
 	
 	wire [7:0] Cursor;
     wire [9:0] RAMWriteAddress, UsRAMAddress;
-	wire [1:0] RAMReadVal;                     // assign this as output from the dual port RAM
-	wire [3:Us0] RAMReadValExt;
+	wire [1:0] UsRAMReadVal;                     // assign this as output from the dual port RAM
+	wire [3:0] UsRAMReadValExt;
 	wire	   UsRAMWriteEnable;
 	wire [1:0] UsRAMWriteVal;
-    wire       UsRAMWriteEnableB;
+    wire       UsRAMWriteEnableB = 1'b0;
     wire [9:0] UsRAMAddressB;
-    wrie [3:0] RAMDataInB, RAMDataOutB;
+    wire [3:0] UsRAMDataInB = 10'h000;
+	wire [3:0] UsRAMDataOutB;
 
 	
-	wire [9:0] ThemRAMWriteAddress, ThemUsRamAddress;
+	wire [9:0] ThemRAMWriteAddress, ThemRAMAddress;
     wire [1:0] ThemRAMReadVal;
-    wire [3:Us0] ThemRAMReadValExt;
-    wire       ThemUsRAMWriteEnable;
-    wire [1:0] ThemUsRAMWriteVal;
-    wire       ThemUsRAMWriteEnableB;
-    wire [9:0] ThemUsRAMAddressB;
-    wrie [3:0] ThemRAMDataInB, ThemRAMDataOutB;
+    wire [3:0] ThemRAMReadValExt;
+    wire       ThemRAMWriteEnable;
+    wire [1:0] ThemRAMWriteVal;
+    wire       ThemRAMWriteEnableB = 1'b0;
+    wire [9:0] ThemRAMAddressB;
+    wire [3:0] ThemRAMDataInB = 10'h000;
+	wire [3:0] ThemRAMDataOutB;
 
     wire PlacementDone;	//ignore for now
 	
@@ -291,8 +290,8 @@ module Nexys4fpga (
 	
 
 
-	assign UsRAMAddress = (UsRAMWriteEnable) ? RAMWriteAddress : Cursor;
-	assign UsRAMReadVal = RAMReadValExt[1:0];
+	assign UsRAMAddress = (UsRAMWriteEnable) ? RAMWriteAddress : {2'b00,Cursor};
+	assign UsRAMReadVal = UsRAMReadValExt[1:0];
 	
 	wire [3:0] temp_datab_output;
 	
@@ -304,15 +303,15 @@ module Nexys4fpga (
       .clka  (clk),
       .wea   (UsRAMWriteEnable),
       .addra (UsRAMAddress),  
-      .dina  (UsRAMWriteVal),
+      .dina  ({2'b00,UsRAMWriteVal}),
       .douta (UsRAMReadValExt),
 
       
       .clkb  (clk),
       .web   (UsRAMWriteEnableB),
       .addrb (UsRAMAddressB),
-      .dinb  (RAMDataInB),
-      .doutb (RAMDataOutB)
+      .dinb  (UsRAMDataInB),
+      .doutb (UsRAMDataOutB)
     );
 	
 	//
@@ -320,16 +319,16 @@ module Nexys4fpga (
     //
     tile_RAM_THEM tile_RAM_THEM (
       .clka  (clk),
-      .wea   (ThemUsRAMWriteEnable),
-      .addra (ThemUsRAMAddress),
-      .dina  (ThemUsRAMWriteVal),
-      .douta (UsThemRAMReadValExt),
+      .wea   (ThemRAMWriteEnable),
+      .addra (ThemRAMAddress),
+      .dina  (ThemRAMWriteVal),
+      .douta (ThemRAMReadValExt),
       
       .clkb  (clk),
-      .web   (ThemUsRAMWriteEnableB),
-      .addrb (ThemUsRamAddressB),
-      .dinb  (ThemDataInB),
-      .doutb (ThemDataOutb)
+      .web   (ThemRAMWriteEnableB),
+      .addrb (ThemRAMAddressB),
+      .dinb  (ThemRAMDataInB),
+      .doutb (ThemRAMDataOutB)
     );
     
 
@@ -409,16 +408,16 @@ module Nexys4fpga (
         .out_port(out_port),   //output from the PicoBlaze(), .to this interface
 
         .write_strobe(write_strobe),
-		.in_port(in_port),   //.to the PicoBlaze(), output from this interface   
+		.in_port(in_port),   //to the PicoBlaze(), output from this interface   
 		
 		
 		.ConnEstablished(ConnEstablished),   //input to picoblaze, connection established signal
 	
-		.Cursor(Cursor),
+		.Cursor(Cursor),	//output from module
 		//.CursorExtraCheck(CursorExtra),
-		.RAMWriteAddress(RAMWriteAddress),
-		.UsRAMWriteEnable(UsRAMWriteEnable),
-		.ReturnReadRAMValue(RAMReadVal),	// EXPAND if needed
+		.RAMWriteAddress(RAMWriteAddress[7:0]),	//output from module
+		.RAMWriteEnable(UsRAMWriteEnable),	//output from module
+		.ReturnReadRAMValue(UsRAMReadVal),	// EXPAND if needed
 		.WriteValue(UsRAMWriteVal),			// EXPAND if needed
 	
 		.PlacementDone(PlacementDone),
@@ -505,10 +504,10 @@ module Nexys4fpga (
 		.ghost_ship     (ghost_ship),
 		.cursor         (Cursor),
         .us_ram_addr    (UsRAMAddressB),
-        .them_ram_addr  (ThemAddressB),
+        .them_ram_addr  (ThemRAMAddressB),
 		
-        .us_ram_data    (UsRAMDataOutB),
-        .them_ram_data  (ThemRAMDateOutB),
+        .us_ram_data    (UsRAMDataOutB[1:0]),
+        .them_ram_data  (ThemRAMDataOutB[1:0]),
         .screen_color    ({vgaRed,vgaGreen,vgaBlue})
     );
     

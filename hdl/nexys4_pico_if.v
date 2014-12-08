@@ -57,11 +57,14 @@
 `define	PA_RAM_W_VAL	8'h18		// (o) Write to block RAM value
 
 // Extended Rojobot interface registers.  These are alternate Port addresses
+`define PA_DATA_RX		8'h19	// (i) Data to read in from the RAM
 `define	PA_SHIP_CHECK_0	8'h0A	// (o) Request to RAM to verify position is valid or not
 `define	PA_SHIP_CHECK_1	8'h1A	// (o) Request to RAM to verify position is valid or not
 `define	PA_SHIP_CHECK_2	8'h1B	// (o))Request to RAM to verify position is valid or not
 `define	PA_SHIP_CHECK_3	8'h1C	// (o) Request to RAM to verify position is valid or not
 `define	PA_SHIP_CHECK_4	8'h1D	// (o) Request to RAM to verify position is valid or not
+`define PA_DATA_TX		8'h1E	// (o) Data to transmit
+`define PA_DATA_RAM		8'h1F	// (i) Address of data in the RAM
 
 `define	OUT_OF_BOUNDS	8'hFF
 `define	VALID_FLAG		8'h01
@@ -143,9 +146,19 @@ module nexys4_pico_if (
 		else
 			valid_request <= INVALID_FLAG;
 	end*/
+	reg    clearRamOutput = 0;
 
 	always @ (posedge clk) begin
-		RamOutput <= RamOutput + ReturnReadRAMValue;
+	   if (port_id == `PA_VALID_FLAG) begin
+	       clearRamOutput <= 1;
+	   end
+	   else if (clearRamOutput) begin
+	       RamOutput <= 0;
+	       clearRamOutput <= 0;
+	   end
+	   else begin
+		  RamOutput <= RamOutput + ReturnReadRAMValue;
+	   end
 	end
 
   /////////////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +197,7 @@ module nexys4_pico_if (
         // 0x0C Return value from RAM
         `PA_VALID_FLAG : begin
             in_port <= valid_request; //PA_VALID_FLAG  Space is valid for placing ship
-            RamOutput <= 0;
+            //clearRamOutput <= 1;
         end
         
         // 0x0D - 0x0F are outputs
@@ -198,7 +211,7 @@ module nexys4_pico_if (
         // 0x11 Read alternate debounced slide switch inputs
         `PA_SLSWTCH1508 : in_port <= db_sw[15:8];    //PA_SLSWTCH1508   slide switches 15:8 (high byte of switches)
         
-        // 0x12 through 0x19 are outputs
+        // 0x12 through 0x18 are outputs
         8'h12 : in_port <= leds[15:8];
         8'h13 : in_port <= {3'b000,dig7};
         8'h14 : in_port <= {3'b000,dig6};
@@ -206,7 +219,8 @@ module nexys4_pico_if (
         8'h16 : in_port <= {3'b000,dig4};
         8'h17 : in_port <= {4'b0000,decimal_point_upper};
         8'h18 : in_port <= {6'b000000,WriteValue};	//PA_RAM_W_VAL	Value to write to ram (ship, hit, miss)
-        8'h19 : in_port <= 8'h00;	//currently not implemented
+        
+		//`PA_DATA_RX : in_port <= dataIn;	// Receive guess from other player over XB
         
         // 0x1A - 0x1D are outputs
         8'h1A : begin
@@ -226,11 +240,11 @@ module nexys4_pico_if (
             //ReadRqCnt <= ReadRqCnt + 1;
         end 
         
-        // 0x1E is not used.
-        8'h1E : in_port <= 8'h00;
+        // 0x1E is an output
+        8'h1E : in_port <= 8'h00; //PA_DATA_TX
         
-        // 0x1F is not used.
-        8'h1F : in_port <= 8'h00;
+        // 0x1F return RAM request value
+        `PA_DATA_RAM : in_port <= {6'b000000,ReturnReadRAMValue}; //expand if needed
 
         default : in_port <= 8'h00; 
 
@@ -329,8 +343,8 @@ module nexys4_pico_if (
             // 0x18 Write value to block RAM
             8'h18: WriteValue <= out_port[1:0];	//PA_RAM_W_VAL  alternate port address
             
-            // 0x19 unused
-            8'h19: ;  //
+            // 0x19 Data request from other player
+            8'h19: ;  //PA_DATA_RX
 			
 			// 0x1A - 0x1D are additional ship space checks
 			`PA_SHIP_CHECK_1: begin
