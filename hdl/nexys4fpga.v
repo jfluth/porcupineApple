@@ -342,15 +342,21 @@ xb1
     wire [3:0] ThemRAMDataInB = 10'h000;
 	wire [3:0] ThemRAMDataOutB;
 
-    wire PlacementDone;	//ignore for now
+    wire [1:0] PlacementDone;	//ignore for now
 	
 	wire [3:0] Orientation;
 	wire [7:0] ShipInfo;
 	
+	wire IFUsRAMWE, IFThemRAMWE;
+	
+	wire [7:0]	IFUsRAMWriteAddr, IFUsRAMRead, IFThemRAMWriteAddr, IFThemRAMRead;
 
-
-	assign UsRAMAddress = (UsRAMWriteEnable) ? RAMWriteAddress : {2'b00,Cursor};
+	assign UsRAMAddress = (IFUsRAMWE) ? {2'b00,IFUsRAMWriteAddr} : {2'b00,IFUsRAMRead};
 	assign UsRAMReadVal = UsRAMReadValExt[1:0];
+	
+	
+	assign ThemRAMAddress = (IFThemRAMWE) ? {2'b00,IFThemRAMWriteAddr} : {2'b00,IFThemRAMRead};
+	assign ThemRAMReadVal = ThemRAMReadValExt[1:0];
 	
 	wire [3:0] temp_datab_output;
 	
@@ -360,7 +366,7 @@ xb1
     //
     tile_RAM_US tile_RAM_US (
       .clka  (clk),
-      .wea   (UsRAMWriteEnable),
+      .wea   (IFUsRAMWE),
       .addra (UsRAMAddress),  
       .dina  ({2'b00,UsRAMWriteVal}),
       .douta (UsRAMReadValExt),
@@ -378,7 +384,7 @@ xb1
     //
     tile_RAM_THEM tile_RAM_THEM (
       .clka  (clk),
-      .wea   (ThemRAMWriteEnable),
+      .wea   (IFThemRAMWE),
       .addra (ThemRAMAddress),
       .dina  ({2'b00,ThemRAMWriteVal}),
       .douta (ThemRAMReadValExt),
@@ -448,11 +454,18 @@ xb1
 		.ConnEstablished(ConnEstablished),   //input to picoblaze, connection established signal
 	
 		.Cursor(Cursor),	//output from module
-		//.CursorExtraCheck(CursorExtra),
-		.RAMWriteAddress(RAMWriteAddress[7:0]),	//output from module
-		.RAMWriteEnable(UsRAMWriteEnable),	//output from module
-		.ReturnReadRAMValue(UsRAMReadVal),	// EXPAND if needed
-		.WriteValue(UsRAMWriteVal),			// EXPAND if needed
+		
+		.UsRAMReadAdress(IFUsRAMRead),
+		.UsRAMWriteAddress(IFUsRAMWriteAddr),		// Our ships
+		.UsRAMWriteEnable(IFUsRAMWE),
+		.ThemRAMReadAdress(IFThemRAMRead),
+		.ThemRAMWriteAddress(IFThemRAMWriteAddr),	// Our guesses
+		.ThemRAMWriteEnable(IFThemRAMWE),
+	
+		.UsReturnReadRAMValue(UsRAMReadVal),	// EXPAND if needed
+		.ThemReturnReadRAMValue(ThemRAMReadVal),
+		.UsWriteValue(UsRAMWriteVal),			// EXPAND if needed
+		.ThemWriteValue(ThemRAMWriteVal),
 	
 		.PlacementDone(PlacementDone),
 	
@@ -474,9 +487,9 @@ xb1
         
         
         .db_btns(db_btns[5:1]),
-        .db_sw(), // db_sw
+        .db_sw(db_sw), // db_sw
         
-        .leds(), // leds //output LEDs that are above switches(), should be connected to actual hardware at the top level
+        .leds(leds), // leds //output LEDs that are above switches(), should be connected to actual hardware at the top level
         .dig3(dig3),
         .dig2(dig2),
         .dig1(dig1),
@@ -538,6 +551,7 @@ xb1
 		
 		.ghost_ship     (ghost_ship),
 		.cursor         (Cursor),
+		.placement_done(PlacementDone),
         .us_ram_addr    (UsRAMAddressB),
         .them_ram_addr  (ThemRAMAddressB),
 		
@@ -571,5 +585,5 @@ xb1
     reg [11:0] screen_color; */
      
 
-AK
+
 endmodule
