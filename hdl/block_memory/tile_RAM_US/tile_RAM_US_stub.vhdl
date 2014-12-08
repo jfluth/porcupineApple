@@ -1,10 +1,10 @@
 -- Copyright 1986-2014 Xilinx, Inc. All Rights Reserved.
 -- --------------------------------------------------------------------------------
 -- Tool Version: Vivado v.2014.3 (win64) Build 1034051 Fri Oct  3 17:14:12 MDT 2014
--- Date        : Sun Dec 07 10:30:59 2014
--- Host        : WIN-T31R621Q7K3 running 64-bit major release  (build 9200)
--- Command     : write_vhdl -force -mode synth_stub
---               c:/Users/Jordan/ECE_540_FINAL_PROJ/ECE_540_FINAL_PROJ.srcs/sources_1/ip/tile_RAM_US/tile_RAM_US_stub.vhdl
+-- Date        : Sun Dec 07 21:12:23 2014
+-- Host        : IPA running 64-bit major release  (build 9200)
+-- Command     : write_vhdl -force -mode synth_stub {C:/Users/pwl/Git
+--               Repos/540/final_proj/hdl/block_memory/tile_RAM_US/tile_RAM_US_stub.vhdl}
 -- Design      : tile_RAM_US
 -- Purpose     : Stub declaration of top-level module interface
 -- Device      : xc7a100tcsg324-1
