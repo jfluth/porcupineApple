@@ -79,7 +79,7 @@ CONSTANT	PA_SHIP_INFO,	0F		; (o) Ship Info output
 CONSTANT	PA_PBTNS_ALT,	10		; (i) pushbutton inputs alternate port address
 CONSTANT	PA_SLSWTCH1508,	11		; (i) slide switches 15:8 (high byte of switches
 CONSTANT	PA_LEDS1508,	12		; (o) LEDs 15:8 (high byte of switches)
-CONSTANT	PA_DIG7,		13		; (o) digit 7 port address
+CONSTANT	PA_RAM_SELECT,	13		; (o) digit 7 port address
 CONSTANT	PA_DIG6,		14		; (o) digit 6 port address
 CONSTANT	PA_DIG5,		15		; (o) digit 5 port address
 CONSTANT	PA_DIG4,		16		; (o) digit 4 port address
