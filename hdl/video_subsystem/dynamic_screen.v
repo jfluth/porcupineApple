@@ -12,6 +12,7 @@
 //
 // Revision:
 // 	12 December 2014    PWL File Created
+//      08 December 2014    AN went back in time and fixed some RAM addressing/indexing issues
 //  
 //
 // 
@@ -43,8 +44,8 @@ module dynamic_screen(
 	// up on a ship (currently it shows instead of ship)
 	//
 	localparam  [1:0] EMPTY	= 7'd0,
-	                  HIT	= 7'd1,
-	                  MISS	= 7'd2,
+	                  MISS	= 7'd1,
+	                  HIT	= 7'd2,
 					  SHIP	= 7'd3;
 					  
 	localparam  [4:0] ACC_0	= 7'd0,  ACC_1 = 7'd1,  ACC_2 = 7'd2,  ACC_3 = 7'd3, ACC_4 = 7'd4,
@@ -86,7 +87,7 @@ module dynamic_screen(
 	reg  [9:0]  cursor_x;
 	reg  [9:0]  cursor_y;
 	
-	assign temp_y = (pixel_y - 10'd100);
+	assign temp_y = (pixel_y - 10'd96);
 	
 	// if we are in the tiles screen region
 	// look up what is in what tile and paint it
@@ -94,7 +95,7 @@ module dynamic_screen(
 		if (~vid_on) begin
 			screen_color <= RED; // debug, If you see red, PWL messed something up!
 		end 
-		else if ((pixel_y > 100) && (pixel_y < 419)) begin
+		else if ((pixel_y > 96) && (pixel_y < 415)) begin
 			// we are in tiles region
 			// calculate the memory indices and addresses
 			tile_rom_x    <= pixel_x[4:0];
@@ -104,11 +105,11 @@ module dynamic_screen(
 			//temp_y        <= (pixel_y - 10'd100);
 			us_ram_x      <= {5'b0, pixel_x[9:5]};
 			us_ram_y      <= {5'b0, temp_y[9:5]};
-			us_ram_addr   <= {us_ram_x,us_ram_y};
+			us_ram_addr   <= {us_ram_x[3:0],us_ram_y[3:0]};
 			
 			them_ram_x    <= {5'b0, (pixel_x[9:5] - 5'd10)};
 			them_ram_y    <= {5'b0, temp_y[9:5]};
-			them_ram_addr <= {them_ram_x,them_ram_y};
+			them_ram_addr <= {them_ram_x[3:0],them_ram_y[3:0]};
 			
 			// get current cursor position
 			cursor_x      <= {6'b0, cursor[7:4]};
