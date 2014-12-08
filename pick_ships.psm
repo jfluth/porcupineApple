@@ -779,6 +779,7 @@ next_mvmt_s2:
 		JUMP	Z,	next_mvmt_s2_chk_right
 		COMPARE	s0,	MSK_BTN_CENTER
 		JUMP	Z,	next_mvmt_s2_chk_center
+		JUMP 	next_mvmt_go_s2
 		
 next_mvmt_s2_chk_up:
 		LOAD	Orien,	NORTH	; Set Orientation to NORTH 
