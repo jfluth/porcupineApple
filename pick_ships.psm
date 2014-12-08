@@ -15,6 +15,7 @@
 ; 06-Dec-14    AN    Updated constants and RAM writes to have value and address.
 ; 08-Dec-14    AN	 Fixed bug with Orientation defaulting to NORTH if no buttons pressed during 
 ; 08-Dec-14    AN    More bug fixes, previously could not place ships touching the border. Added Jordan's updated code as well
+; 08-Dec-14	please work
 ;
 ; Description:
 ; ============
@@ -497,10 +498,7 @@ wr_alldigits:										; Digits 0 to 3 are stored in registers
 				CALL	SS_wrdigx_hi				;
 				LOAD	s2,			06				; point at digit 6
 				FETCH	s1,			SP_DIG6			; and write it to the display
-				CALL	SS_wrdigx_hi				;
-				LOAD	s2,			07				; point at digit 7
-				FETCH	s1,			SP_DIG7			; and write it to the display
-				CALL	SS_wrdigx_hi				;				
+				CALL	SS_wrdigx_hi				;	
 				RETURN
 				
 					
@@ -1108,10 +1106,10 @@ next_mvmt_go_s4:
 ; ==============================================================================
 DISP_X_Y:		LOAD		s0,		Cursor				; Dig[3:2] gets X-coordinate
 				AND 		s0, 	X_COOR
-				SL0 		s0
-				SL0 		s0
-				SL0 		s0
-				SL0 		s0	
+				SR0 		s0
+				SR0 		s0
+				SR0 		s0
+				SR0 		s0	
 				LOAD		Dig1,	s0					; Digit 2 gets lower nibble
 				
 				LOAD		s0,		Cursor				; Dig[1:0] gets Y-coordinate
@@ -1559,6 +1557,7 @@ SS_wrdpts_hi:	LOAD		s0,		s1					; Copy the decimal points to s0 to leave s1 unch
 	
 
 ; =========================
+; === Interrupt Handler ===
 ; === Interrupt Handler ===
 ; =========================
 ADDRESS 300
