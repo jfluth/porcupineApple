@@ -119,7 +119,7 @@ CONSTANT	OUT_OF_BOUNDS, FF
 CONSTANT	X_COOR,	F0
 CONSTANT	Y_COOR,	0F
 
-CONSTANT	MAX_X,	09
+CONSTANT	MAX_X,	90
 CONSTANT	MIN_X,	00	
 CONSTANT	MAX_Y,	09
 CONSTANT	MIN_Y,	00	
@@ -402,12 +402,7 @@ ADDRESS	000
 				JUMP	main						; Ken Chapman and is known to be in 2014.2
 				JUMP	main						; Address 003 can be corrupted by Vivado HW manager
 													;
-main:			LOAD 	s0, 	PA_SLSWTCH
-				OUTPUT 	s0, 	PA_LEDS1508
-				COMPARE s0, 	MSK_SW0
-				CALL 	Z, 		SET_PLAYER_ONE
-				CALL 	NZ, 	SET_PLAYER_TWO
-				CALL	init_btnluptbl				; initialize button to MotCtl lookup table
+main:			CALL	init_btnluptbl				; initialize button to MotCtl lookup table
 				CALL	init_mvmttbl				; initialize movement to character code lookup table
 				LOAD	s1,		00					; clear the semaphore
 				STORE	s1,		SP_SEM				;
@@ -423,6 +418,8 @@ main:			LOAD 	s0, 	PA_SLSWTCH
 				LOAD 	Cursor,	CURSOR_INIT         ; Initialize Cursor variable to center of the screen
 				LOAD	Orien,	EAST				; Initialize Orientation to East
 				LOAD	Ship_info,	55				; Initialize to 5 ships, current length 5
+
+				CALL PLAYER_ASSIGN
 		
 				CALL	SS_wrdpts					; will be toggled in the interrupt handler
 				LOAD	s1,		03					; turn on decimal points 5 and 4 to offset the movement digit
@@ -1169,20 +1166,27 @@ DISP_X_Y:		LOAD		s0,		Cursor				; Dig[3:2] gets X-coordinate
 ;=======================  SET PLAYER ONE AND PLAYER TWO   ======================
 ;
 ;===============================================================================
+PLAYER_ASSIGN: 	LOAD 	s0, 	PA_SLSWTCH
+				OUTPUT 	s0, 	PA_LEDS1508
+				COMPARE s0, 	MSK_SW0
+				JUMP 	Z, 		SET_PLAYER_ONE
+				JUMP 	NZ, 	SET_PLAYER_TWO
+
+
 SET_PLAYER_ONE: LOAD  s0, 	SP_PLAYER_ONE
 				STORE s0,	SP_PLAYER_NUMBER
-				LOAD 	s0, 			SP_RECEIVING
+				LOAD 	s0, 			SP_READ_BTNS
 				STORE 	s0, 			SP_GAME_STATE
 				LOAD 	s0, 			80
-				;OUTPUT 	s0, 			PA_LEDS1508
+				OUTPUT 	s0, 			PA_LEDS1508
 				RETURN
 
 SET_PLAYER_TWO: LOAD  s0, 	SP_PLAYER_TWO
 				STORE s0,	SP_PLAYER_NUMBER
-				LOAD 	s0, 			SP_READ_BTNS
+				LOAD 	s0, 			SP_RECEIVING
 				STORE 	s0, 			SP_GAME_STATE
 				LOAD 	s0, 			E0
-				;OUTPUT 	s0, 			PA_LEDS1508
+				OUTPUT 	s0, 			PA_LEDS1508
 				RETURN
 
 ;===============================================================================
@@ -1194,11 +1198,8 @@ TURN:			FETCH 	s0, 	SP_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
 				COMPARE s0, 	TRUE
 				JUMP 	NZ, 	ERROR
 				LOAD 	s0, 	AA
-				;OUTPUT 	s0, 	PA_LEDS1508
-				LOAD 	s0, 	PA_SLSWTCH
 				OUTPUT 	s0, 	PA_LEDS1508
-				COMPARE s0, 	MSK_SW0
-				JUMP 	TURN
+
 
 				; GO TO THE RIGHT STATE
 				FETCH 	s0, 	SP_GAME_STATE
@@ -1221,9 +1222,9 @@ TURN:			FETCH 	s0, 	SP_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
 READBTN:		;CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
 				;CALL	btn2mot						; and calculate new MotCtl - returned in s1
 
-				LOAD	s0, But_input		; Read button input
-				AND		s0, MSK_ALLBTNS		; Mask out just the buttons
-				COMPARE	s0, MSK_BTN_UP		; See if only the up button was pressed
+				LOAD	s0, But_input				; Read button input
+				AND		s0, MSK_ALLBTNS				; Mask out just the buttons
+				COMPARE	s0, MSK_BTN_UP				; See if only the up button was pressed
 
 				COMPARE s0, 	MSK_BTN_UP
 				JUMP 	Z,		UP 	
