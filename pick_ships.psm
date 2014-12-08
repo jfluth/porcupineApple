@@ -1239,6 +1239,7 @@ READBTN:		;CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
 				JUMP 	ERROR 
 
 UP:				LOAD 	s0, 	Cursor
+				AND		s0,		Y_COOR		
 				COMPARE s0, 	MIN_Y
 				JUMP 	Z, 		ERROR
 				SUB 	Cursor, INC_Y
@@ -1248,6 +1249,7 @@ UP:				LOAD 	s0, 	Cursor
 				RETURN
 
 DOWN:			LOAD 	s0, 	Cursor
+				AND		s0,		Y_COOR	
 				COMPARE s0, 	MAX_Y
 				JUMP 	Z, 		ERROR
 				ADD 	Cursor, INC_Y
@@ -1257,6 +1259,7 @@ DOWN:			LOAD 	s0, 	Cursor
 				RETURN
 
 LEFT:			LOAD 	s0, 	Cursor
+				AND		s0,		X_COOR	
 				COMPARE s0, 	MIN_X
 				JUMP 	Z, 		ERROR
 				SUB 	Cursor, INC_X
@@ -1266,6 +1269,7 @@ LEFT:			LOAD 	s0, 	Cursor
 				RETURN
 
 RIGHT:			LOAD 	s0, 	Cursor
+				AND		s0,		X_COOR	
 				COMPARE s0, 	MAX_X
 				JUMP 	Z, 		ERROR
 				ADD 	Cursor, INC_X
