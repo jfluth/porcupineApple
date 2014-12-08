@@ -472,7 +472,7 @@ module Nexys4fpga (
     pix_clk_25MHz    pixClock25 (
         .clk_in1        (clk),
         .pix_clk_25MHz  (pixClock),
-        .reset          (sysreset)
+        .reset          (!sysreset)
     );
         
         
@@ -482,7 +482,7 @@ module Nexys4fpga (
     dtg #(/* Keeping parameter defaults */)
     dtg (
         .clock          (pixClock),
-        .rst            (sysreset),
+        .rst            (!sysreset),
         .horiz_sync     (Hsync),
         .vert_sync      (Vsync),
         .video_on       (vidOn),
@@ -496,7 +496,7 @@ module Nexys4fpga (
     dynamic_screen #(/* No parameters in this module */)
     dynamicScreen (
         .clk            (clk),
-        .rst            (sysreset),
+        .rst            (!sysreset),
         .pixel_x        (pixCol),
         .pixel_y        (pixRow),
         .vid_on         (vidOn),
@@ -518,7 +518,7 @@ module Nexys4fpga (
     ghost_ship #(/* No parameters in this module */)
     ghostShipcreen (
 		.clk			(clk),
-		.rst			(sysreset),
+		.rst			(!sysreset),
 		.pixel_x		(pixCol),
 		.pixel_y		(pixRow),
 		.cursor			(Cursor),
