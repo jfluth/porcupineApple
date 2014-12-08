@@ -280,8 +280,6 @@ module nexys4_pico_if (
 			else
 				in_port <= {6'b000000,ThemReturnReadRAMValue}; //expand if needed
 				
-			UsRAMWriteEnable <= 1'b0;
-			ThemRAMWriteEnable <= 1'b0;
 		end
 
         default : in_port <= 8'h00; 
