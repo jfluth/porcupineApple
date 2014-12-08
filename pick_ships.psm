@@ -418,9 +418,9 @@ main:			CALL	init_btnluptbl				; initialize button to MotCtl lookup table
 				LOAD 	s1,		STATE0          	; Start in state 0
 				STORE	s1,		SP_STATE
 				; clear Out of Bounds
-				LOAD	s1, 00
+				;LOAD	s1, 00
 				STORE	s1, SP_OOB
-				LOAD	s0, FALSE
+				;LOAD	s0, FALSE
 				STORE	s0, SP_PLACE_DONE
 				LOAD 	Cursor,	CURSOR_INIT         ; Initialize Cursor variable to center of the screen
 				LOAD	Orien,	EAST				; Initialize Orientation to East
@@ -1610,12 +1610,7 @@ SS_wrdpts_hi:	LOAD		s0,		s1					; Copy the decimal points to s0 to leave s1 unch
 				OUTPUT	s0,		PA_DP0704			; write the decimal points to the display
 				RETURN				
 	
-;---------------------
-; YOU WIN THE GAME!
-;---------------------
-the_end: 
-      JUMP the_end
-	
+
 ; =========================
 ; === Interrupt Handler ===
 ; =========================
