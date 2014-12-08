@@ -261,7 +261,7 @@ module Nexys4fpga (
   
   
 	wire ConnEstablished;
-//	assign ConnEstablished = 1'b1;	//For testing purposes
+	assign ConnEstablished = 1'b1;	//For testing purposes
 	
 	wire [7:0] Cursor, RAMWriteAddress, RAMAddress;
 	wire [1:0] RAMReadVal;	// assign this as output from the dual port RAM
@@ -274,28 +274,13 @@ module Nexys4fpga (
 	wire [3:0] Orientation;
 	wire [7:0] ShipInfo;
 	
-	wire enable;
-	assign enable = !RAMWriteEnable;
-	
-	/*blk_mem_gen_0 MyShips (
-		.clka(clk),
-		.wea(RAMWriteEnable),
-		.addra(RAMAddress),
-		.dina(RAMWriteVal),
-		.clkb(clk),
-		.enb(enable),
-		.addrb(RAMAddress),
-		.doutb(RAMReadVal)
 
-	);*/
-	
 	assign RAMAddress = (RAMWriteEnable) ? RAMWriteAddress : Cursor;
 	assign RAMReadVal = RAMReadValExt[1:0];
 	
 	wire [3:0] temp_datab_output;
 	
 	tile_RAM_US tile_RAM_US (
-    /* synthesis syn_black_box black_box_pad_pin="clka,wea[0:0],addra[9:0],dina[3:0],douta[3:0],clkb,web[0:0],addrb[9:0],dinb[3:0],doutb[3:0]" */
       .clka(clk),
       .wea(RAMWriteEnable),
       .addra({2'b00,RAMAddress}),  //10 bits?
@@ -311,11 +296,11 @@ module Nexys4fpga (
 	
 	reg [26:0] counter = 0;
 
-	);
+	
     //
     // Connection module
     // Instantiate the Unit Under Test (UUT)
-
+/*
     wire        RxD, TxD;  // XBee serial connection wires
     wire [7:0]  XBDataIn, XBDataOut;
     wire        XBDataSend, XBDataRdy;
@@ -359,15 +344,13 @@ module Nexys4fpga (
         .DataRdy(XBDataRdy)    
     );
 
-
-
-	reg [14:0] counter = 0;
+*/
 
 	reg slow_int = 0;
 	
 	always @ (posedge clk) begin
 		counter = counter + 1;
-		if (counter == 27'd20000000) begin
+		if (counter == 27'd18000000) begin
 			slow_int <= 1'b1;
 			counter <= 0;
 		end
@@ -384,13 +367,7 @@ module Nexys4fpga (
           
         .port_id(port_id),
         .out_port(out_port),   //output from the PicoBlaze(), .to this interface
-        //.locX(locX),
-        //.locY(locY),
-        //.bot_info(bot_info),
-        //.sensors(sensors), 
-                         
-        //.MotCtrl(MotCtrl),
-        
+
         .write_strobe(write_strobe),
 		.in_port(in_port),   //.to the PicoBlaze(), output from this interface   
 		
@@ -409,10 +386,10 @@ module Nexys4fpga (
 		.Orientation(Orientation),	//icon TBD
 		.ShipInfo(ShipInfo),		//icon TBD
 		
-        .dataOUt(IntDataOut),
-        .dataSend(IntDataSend),
-        .dataIn(XBDataIn),
-        .dataRdy(XBDataRdy),
+        //.dataOUt(IntDataOut),
+        //.dataSend(IntDataSend),
+        //.dataIn(XBDataIn),
+        //.dataRdy(XBDataRdy),
 		
         
         .interrupt(interrupt),       //send interrupt to PicoBlaze
