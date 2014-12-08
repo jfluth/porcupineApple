@@ -15,7 +15,6 @@
 ; 06-Dec-14    AN    Updated constants and RAM writes to have value and address.
 ; 08-Dec-14    AN	 Fixed bug with Orientation defaulting to NORTH if no buttons pressed during 
 ; 08-Dec-14    AN    More bug fixes, previously could not place ships touching the border. Added Jordan's updated code as well
-; 08-Dec-14	please work
 ;
 ; Description:
 ; ============
@@ -1127,8 +1126,9 @@ DISP_X_Y:		LOAD		s0,		Cursor				; Dig[3:2] gets X-coordinate
 PLAYER_ASSIGN: 	LOAD 	s0, 	PA_SLSWTCH
  				OUTPUT 	s0, 	PA_LEDS1508
  				COMPARE s0, 	MSK_SW0
- 				JUMP 	Z, 		SET_PLAYER_ONE
- 				JUMP 	NZ, 	SET_PLAYER_TWO
+ 				;JUMP 	Z, 		SET_PLAYER_ONE
+ 				;JUMP 	NZ, 	SET_PLAYER_TWO
+				JUMP 	SET_PLAYER_TWO
 				
 				
 SET_PLAYER_ONE: LOAD  s0, 	SP_PLAYER_ONE
