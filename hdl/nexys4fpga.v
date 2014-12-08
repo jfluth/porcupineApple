@@ -1,163 +1,221 @@
-// nexys4fpga.v - Top level module for Nexys4 as used in the ECE 540 Project 2
+// nexys4fpga.v - Top level module for Nexys4 as used in the ECE 540 Final Project
 //
-// Copyright Roy Kravitz, 2008-2013, 2014, 2015
+// Copyright 
 // 
-// Created By:		Roy Kravitz and Dave Glover
-// Updated By:      Andrew Northy & Paul Long
-// Last Modified:	07-Dec-2014 (PWL)
+// Created By:      Roy Kravitz and Dave Glover
+// Last Modified:   24-November-2015 (AK)
 //
 // Revision History:
 // -----------------
-// Nov-2008		RK		Created this module for the S3E Starter Board
-// Apr-2012		DG		Modified for Nexys 3 board
-// Dec-2014		RJ		Cleaned up formatting.  No functional changes
-// Mar-2014		CZ		Modified for Nexys 4 board and added functionality for CPU RESET button
-// Aug-2014		RK		Modified for Vivado.  No functional changes
-// Oct-2014     AN      Modified based on ECE540 Project 1 requirements
-// Oct-2014     AN      Modified for Project 2 top-level requirements 
-// Dec-2014     AN      Modified for Final project
-// Dec-2014		PWL		Added video subsystem
-//
+// Nov-2008     RK      Created this module for the S3E Starter Board
+// Apr-2012     DG      Modified for Nexys 3 board
+// Dec-2014     RJ      Cleaned up formatting.  No functional changes
+// Mar-2014     CZ      Modified for Nexys 4 board and added functionality for CPU RESET button
+// Aug-2014     RK      Modified for Vivado.  No functional changes
+// Oct-2015     AN      Modified for project 2.  
+// Nov-2015     AK      Modified for final project
+// 
 // Description:
 // ------------
-// Top level module for the ECE 540 Project 2 reference design
+// Top level module for the ECE 540 Project 1 reference design
 // on the Nexys4 FPGA Board (Xilinx XC7A100T-CSG324)
-// Modified output and calculations for Projec1 2
+// Modified to test XBee functionality for the final project 
 //
-// The buttons no longer serve as a function input to the design (aside from reset)
-// The top level connects the internal modules, and displays output to the seven- 
-// segment displays, the LEDs, and the VGA output port.
-// 
-//	btnl			Not used in this design
-//	btnu			Not used in this design
-//	btnr			Not used in this design
-//	btnd			Not used in this design
-//  btnc			Not used in this design
-//	btnCpuReset		CPU RESET Button - System reset.  Asserted low by Nexys 4 board
+// Use the pushbuttons to control the UARTs:
+//  btnl            Send selected 8-bit value from left to right UART 
+//  btnu            Not used
+//  btnr            Send selected 8-bit value from right to left UART 
+//  btnd            Not used
+//  btnc            Not used
+//  btnCpuReset     CPU RESET Button - System reset.  Asserted low by Nexys 4 board
 //
-//	sw[15:0]		Not used in this design
+//  sw[15:0]        Top (left) 8 switches select input data for left UART, bottom
+//                  (right) 8 switches select input data for right UART
+//  LEDs            Indicate the received value.  Split between top and
+//                  bottom, just as switches are for the two UARTs.
 //
 // External port names match pin names in the nexys4fpga.xdc constraints file
 ///////////////////////////////////////////////////////////////////////////
 
 module Nexys4fpga (
-	input 				clk,                 	// 100MHz clock from on-board oscillator
-	input				btnL, btnR,				// pushbutton inputs - left (db_btns[4])and right (db_btns[2])
-	input				btnU, btnD,				// pushbutton inputs - up (db_btns[3]) and down (db_btns[1])
-	input				btnC,					// pushbutton inputs - center button -> db_btns[5]
-	input				btnCpuReset,			// red pushbutton input -> db_btns[0]
-	input	[15:0]		sw,						// switch inputs
-	
-	output	[15:0]		led,  					// LED outputs	
-	
-	output 	[6:0]		seg,					// Seven segment display cathode pins
-	output              dp,
-	output	[7:0]		an,						// Seven segment display anode pins	
-	
-	//output	[7:0]		JA,						// JA Header
-	
+    input               clk,                    // 100MHz clock from on-board oscillator
+    input               btnL, btnR,             // pushbutton inputs - left (db_btns[4])and right (db_btns[2])
+    input               btnU, btnD,             // pushbutton inputs - up (db_btns[3]) and down (db_btns[1])
+    input               btnC,                   // pushbutton inputs - center button -> db_btns[5]
+    input               btnCpuReset,            // red pushbutton input -> db_btns[0]
+    input   [15:0]      sw,                     // switch inputs
+    input               RxD1, RxD2,             // serial data input
+    
+    output              TxD1, TxD2,             // serial data output
+    output  [15:0]      led,                    // LED outputs  
+    
+    output  [6:0]       seg,                    // Seven segment display cathode pins
+    output              dp,
+    output  [7:0]       an,                     // Seven segment display anode pins 
+
 	output  [3:0]       vgaRed,
 	output  [3:0]       vgaBlue,
 	output  [3:0]       vgaGreen,
 	
 	output              Hsync,
 	output              Vsync
+//    output  [7:0]       JA                      // JA Header
 ); 
 
-	// parameter
-	parameter SIMULATE = 0;
+    // parameter
+    localparam  SIMULATE              = 0;
+    localparam  BAUD                  = 9600; 
+    localparam  DATA_WIDTH            = 8;
+    localparam  CLKFREQ               = 100_000_000;        // Nexys 4 oscillator clk
+    localparam  RESET_POLARITY_LOW    = 1;
 
-	// internal variables
-	wire 	[15:0]		db_sw;					// debounced switches
-	wire 	[5:0]		db_btns;				// debounced buttons
-	
-	wire				sysclk;					// 100MHz clock from on-board oscillator	
-	wire				sysreset;				// system reset signal - asserted high to force reset
-	
-	wire 	[4:0]		dig7, dig6,
-						dig5, dig4,
-						dig3, dig2, 
-						dig1, dig0;				// display digits
-	wire 	[7:0]		decpts;					// decimal points
-	wire 	[15:0]		chase_segs;				// chase segments from Rojobot (debug)
-	
-	wire    [7:0]       segs_int;              // sevensegment module the segments and the decimal point
+    // internal variables
+    wire    [15:0]      db_sw;                  // debounced switches
+    wire    [5:0]       db_btns;                // debounced buttons
+    
+    wire                sysclk;                 // 100MHz clock from on-board oscillator    
+    wire                sysreset;               // system reset signal - asserted high to force reset
+    
+    wire    [4:0]       dig7, dig6,
+                        dig5, dig4,
+                        dig3, dig2, 
+                        dig1, dig0;             // display digits
+    wire    [7:0]       decpts;                 // decimal points
+    wire    [15:0]      chase_segs;             // chase segments from Rojobot (debug)
+    
+    wire    [7:0]       segs_int;              // sevensegment module the segments and the decimal point
 
 /******************************************************************/
-/* THIS SECTION CHANGED FOR PROJECT 2                             */
-/******************************************************************/		
-	wire    [4:0]       led_motion, hundreds_digit, tens_digit, ones_digit;
-	wire 	[63:0]		digits_out;				// ASCII digits (Only for Simulation)
-  
+/* CHANGE THIS SECTION FOR YOUR LAB 1                             */
+/******************************************************************/        
+// Proj 2 signals:
+    wire [4:0]  led_motion, hundreds_digit, tens_digit, ones_digit; // for proj 2
     wire [2:0]  motion_mode; // Output from Decode Motion module and input for Motion Indicator FSM and Compass modules
-  
     wire [8:0]  heading;  // Output from Compass module, current heading in 0-359 degrees
-    
     wire [15:0] leds;
-    
+// end proj 2 signals
 
-    
-	assign	led = leds;			// leds show bot sensor information
+//    // set up the display and LEDs
+//    assign  dig7 = {5'b11111};                  // blank
+//    assign  dig6 = {5'b11111};
+//    assign  dig5 = {1'b0, xbDataOut[15:12]};
+//    assign  dig4 = {1'b0, xbDataOut[11:8]};
+//    
+//    
+//    assign  dig3 = {5'b11111};
+//    assign  dig2 = {5'b11111};  
+//    assign  dig1 = {1'b0, xbDataOut[7:4]};
+//    assign  dig0 = {1'b0, xbDataOut[3:0]};
+//  assign  decpts = 8'b00001000;           // decimal point separates digit 3 (motion indicator) and compass (d2 - d0) 
+    assign  decpts = 8'b00000000;           // no decimal points 
+//    assign  led = xbDataOut;                    // leds show the debounced switches
+    assign led = leds;
 
 /******************************************************************/
-/* END SECTION CHANGES FOR PROJECT 2                              */
-/******************************************************************/			
-	// global assigns
-	assign	sysclk = clk;
-	assign 	sysreset = db_btns[0]; // btnCpuReset is asserted low
-	
-	assign dp = segs_int[7];
-	assign seg = segs_int[6:0];
+/* THIS SECTION SHOULDN'T HAVE TO CHANGE FOR LAB 1                */
+/******************************************************************/            
+    // global assigns
+    assign  sysclk = clk;
+    assign  sysreset = db_btns[0]; // btnCpuReset is asserted low
+    
+    assign dp = segs_int[7];
+    assign seg = segs_int[6:0];
+    
+    assign  JA = {sysclk, sysreset, 6'b000000};
+    
+    //instantiate the debounce module
+    debounce
+    #(
+        .RESET_POLARITY_LOW(1),
+        .SIMULATE(SIMULATE)
+    )   DB
+    (
+        .clk(sysclk),   
+        .pbtn_in({btnC,btnL,btnU,btnR,btnD,btnCpuReset}),
+        .switch_in(sw),
+        .pbtn_db(db_btns),
+        .swtch_db(db_sw)
+    );  
+        
 
-	//assign	JA = {sysclk, sysreset, 6'b000000};
 
+    // instantiate the 7-segment, 8-digit display
+    sevensegment
+    #(
+        .RESET_POLARITY_LOW(1),
+        .SIMULATE(SIMULATE)
+    ) SSB
+    (
+        // inputs for control signals
+        .d0(dig0),
+        .d1(dig1),
+        .d2(dig2),
+        .d3(dig3),
+        .d4(dig4),
+        .d5(dig5),
+        .d6(dig6),
+        .d7(dig7),
+        .dp(decpts),
+        
+        // outputs to seven segment display
+        .seg(segs_int),         
+        .an(an),
+        
+        // clock and reset signals (100 MHz clock, active high reset)
+        .clk(sysclk),
+        .reset(sysreset),
+        
+        // ouput for simulation only
+        .digits_out(digits_out)
+    );
 
-	
-	//instantiate the debounce module
-	debounce
-	#(
-		.RESET_POLARITY_LOW(1),
-		.SIMULATE(SIMULATE)
-	)  	DB
-	(
-		.clk(sysclk),	
-		.pbtn_in({btnC,btnL,btnU,btnR,btnD,btnCpuReset}),
-		.switch_in(sw),
-		.pbtn_db(db_btns),
-		.swtch_db(db_sw)
-	);	
-	
-
-	// instantiate the 7-segment, 8-digit display
-	sevensegment
-	#(
-		.RESET_POLARITY_LOW(1),
-		.SIMULATE(SIMULATE)
-	) SSB
-	(
-		// inputs for control signals
-		.d0(dig0),
-		.d1(dig1),
- 		.d2(dig2),
-		.d3(dig3),
-		.d4(dig4),
-		.d5(dig5),
-		.d6(dig6),
-		.d7(dig7),
-		.dp(decpts),
-		
-		// outputs to seven segment display
-		.seg(segs_int),			
-		.an(an),
-		
-		// clock and reset signals (100 MHz clock, active high reset)
-		.clk(sysclk),
-		.reset(sysreset),
-		
-		// ouput for simulation only
-		.digits_out(digits_out)
-	);
-
+/******************************************************************/
+/* XBee instantiations                                            */
+/******************************************************************/                            
+    wire [7:0] XBDataIn, XBDataOut;
+    wire XBDataSend, XBDataRdy;
+xbee 
+#(  
+    .BAUD(BAUD), 
+    .DATA_WIDTH(DATA_WIDTH),
+    .CLKFREQ(CLKFREQ),      // Nexys 4 oscillator clk
+    .RESET_POLARITY_LOW(RESET_POLARITY_LOW)
+)
+xb2
+(
+    .clk(sysclk),
+    .reset(sysreset),
+    .DataIn(XBDataIn),    
+    .send_data(XBDataSend),     // btn_left
+    .read_data(1),              // used for FIFO operation
+    .RxD(RxD2),     
+    .DataOut(XBDataOut),     
+//    .DataOut(led[15:8]),     
+    .TxD(TxD2), 
+    .DataRdy(XBDataRdy)            
+);
+/*
+xbee 
+#(
+    .BAUD(BAUD), 
+    .DATA_WIDTH(DATA_WIDTH),
+    .CLKFREQ(CLKFREQ),        // Nexys 4 oscillator clk
+    .RESET_POLARITY_LOW(RESET_POLARITY_LOW)
+)
+xb1
+(
+    .clk(sysclk),
+    .reset(sysreset),
+    .DataIn(db_sw[7:0]),     
+    .send_data(db_btns[2]),     // btn_right
+    .read_data(1),              // used for FIFO operation
+    .RxD(RxD1),     
+    .DataOut(xbDataOut[7:0]),     
+//    .DataOut(led[7:0]),  
+    .TxD(TxD1), 
+    .DataRdy(XBDRdy1)    
+);
+*/
 /******************************************************************/
 /* THIS SECTION CHANGED FOR PROJECT 2                             */
 /******************************************************************/							
@@ -172,6 +230,7 @@ module Nexys4fpga (
   // and these would be adequate for most designs.
   //
     
+
     wire	[11:0]	address;
     wire    [17:0]  instruction;
     
@@ -293,10 +352,6 @@ module Nexys4fpga (
 	assign UsRAMAddress = (UsRAMWriteEnable) ? RAMWriteAddress : {2'b00,Cursor};
 	assign UsRAMReadVal = UsRAMReadValExt[1:0];
 	
-	//PWL I'm guessing here
-	assign ThemRAMAddress = (ThemRAMWriteEnable) ? ThemRAMWriteAddress: {2'b00,Cursor};
-	assign ThemRAMReadVal =  ThemRAMReadValExt[1:0];
-	
 	wire [3:0] temp_datab_output;
 	
     
@@ -338,7 +393,6 @@ module Nexys4fpga (
 
 
     reg [26:0] counter = 0;
-
 	
     //
     // Connection module
@@ -347,10 +401,8 @@ module Nexys4fpga (
     wire        RxD, TxD;  // XBee serial connection wires
     wire [7:0]  XBDataIn, XBDataOut;
     wire        XBDataSend, XBDataRdy;
-
     wire [7:0]  ConnDataOut, IntDataOut;
     wire        ConnDataSend, IntDataSend;
-
     assign  XBDataIn = (ConnEstablished)? IntDataOut : ConnDataOut;
     assign  XBDataSend = (ConnEstablished)? IntDataSend : ConnDataSend; 
     
@@ -365,29 +417,7 @@ module Nexys4fpga (
             .send_data(ConnDataSend),
             .ConnEstablished(ConnEstablished)
             );
-	
-    xbee 
-    #(
-        .BAUD(BAUD), 
-        .DATA_WIDTH(DATA_WIDTH),
-        .CLKFREQ(CLKFREQ),        // Nexys 4 oscillator clk
-        .RESET_POLARITY_LOW(RESET_POLARITY_LOW)
-    )
-    xb1
-    (
-        .clk(sysclk),
-        .reset(sysreset),
-        .DataIn(XBDataIn),     //
-        .send_data(XBDataSend),  // 
-        .read_data(1),           // used for FIFO operation
-        .RxD(RxD),     
-        .DataOut(XBDataOut),     
-    //    .DataOut(led[7:0]),  
-        .TxD(TxD), 
-        .DataRdy(XBDataRdy)    
-    );
-
-*/
+*/	
 
 	reg slow_int = 0;
 	
@@ -429,11 +459,12 @@ module Nexys4fpga (
 		.Orientation(Orientation),	//icon TBD
 		.ShipInfo(ShipInfo),		//icon TBD
 		
-        //.dataOUt(IntDataOut),
-        //.dataSend(IntDataSend),
-        //.dataIn(XBDataIn),
-        //.dataRdy(XBDataRdy),
-		
+ //   wire [7:0] XBDataIn, XBDataOut;
+ //   wire XBDataSend, XBDataRdy;
+        .TX_DataSend(XBDataSend),//   1 output
+        .TX_DataOut(XBDataIn),// 8 output
+        .RX_DataIn(XBDataOut), //     8 input
+        .RX_DataReady(XBDataRdy),//    1 input
         
         .interrupt(interrupt),       //send interrupt to PicoBlaze
         .interrupt_ack(interrupt_ack),   //ack from PicoBlaze
@@ -443,9 +474,9 @@ module Nexys4fpga (
         
         
         .db_btns(db_btns[5:1]),
-        .db_sw(db_sw),
+        .db_sw(), // db_sw
         
-        .leds(leds),  //output LEDs that are above switches(), should be connected to actual hardware at the top level
+        .leds(), // leds //output LEDs that are above switches(), should be connected to actual hardware at the top level
         .dig3(dig3),
         .dig2(dig2),
         .dig1(dig1),
@@ -468,7 +499,6 @@ module Nexys4fpga (
 	wire	[9:0]	pixCol;
 	wire			vidOn;
 	wire			pixClock;
-	wire    [1:0]   placement_done; //signal from Jordan/Andrew that player is in active turn
 	
 	
     ///////////////////////////////////////////////////////////////////////////	
@@ -508,8 +538,6 @@ module Nexys4fpga (
 		
 		.ghost_ship     (ghost_ship),
 		.cursor         (Cursor),
-		.placement_done (PlacementDone),
-		
         .us_ram_addr    (UsRAMAddressB),
         .them_ram_addr  (ThemRAMAddressB),
 		
@@ -543,5 +571,5 @@ module Nexys4fpga (
     reg [11:0] screen_color; */
      
 
-    
+AK
 endmodule
