@@ -13,6 +13,7 @@
 // Revision:
 // 	12 December 2014    PWL File Created
 //      08 December 2014    AN went back in time and fixed some RAM addressing/indexing issues
+//	08 December 2014    AN removed ghost_ship from THEM section
 //  
 //
 // 
@@ -143,10 +144,6 @@ module dynamic_screen(
 					screen_color <= YELLOW;
 				// paint the ship being activle placed
 				end 
-				else if (ghost_ship)  begin
-					screen_color <= ship_rom_data;
-				// no special cases left, paint current occupant of the tile
-				end	
 				else begin
 					case (them_ram_data)
 						HIT:     begin screen_color <= hit_rom_data;  end
