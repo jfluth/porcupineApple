@@ -12,7 +12,7 @@
 //
 // Revision:
 // 	7 December 2014    PWL File Created
-//	8 December 2014    AN fixing bugs
+// 	8 December 2014    AN fixing bugs, added min and max MUX. File should be golden
 //  
 //
 // 
@@ -45,9 +45,9 @@ module ghost_ship(
 	
 	wire [3:0] tile_x_min, tile_x_max, tile_y_min, tile_y_max;
 	
-	assign tile_x_min =  (cursor_x - length + 1) >= 0 ? (cursor_x - length + 1) : 0;
+	assign tile_x_min =  (cursor_x - length + 6) >= 5 ? (cursor_x - length + 1) : 0;   //Doing plus 6 rather than plus 1 to avoid going into wrap-around
 	assign tile_x_max =  (cursor_x + length - 1) <= 9 ? (cursor_x + length - 1) : 9;
-	assign tile_y_min =  (cursor_y - length + 1) >= 0 ? (cursor_y - length + 1) : 0;
+	assign tile_y_min =  (cursor_y - length + 6) >= 5 ? (cursor_y - length + 1) : 0;
 	assign tile_y_max =  (cursor_y + length - 1) <= 9 ? (cursor_y + length - 1) : 9;
 	
 	
