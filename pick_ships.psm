@@ -3,7 +3,7 @@
 ;
 ; Version:	1.3
 ; Author:	Andrew Northy
-; Date:		02-Dec-2014
+; Date:		07-Dec-2014
 ;
 ; Revision History
 ; ================
@@ -11,7 +11,8 @@
 ; 01-Dec-14    AN    Added portions of collision detection algorithm, changed some portions of addresses to interface with RAM
 ; 02-Dec-14    AN    Finished State 2, updated incorrect labelling for transitioning from state 1 into state 2 (was called state 3)
 ; 02-Dec-14    AN    Finished State 3 and 4, code is assembling, must be tested
-; 02-Dec-14    JF    Added code for turn functionality.
+
+; 06-Dec-14    AN    Updated constants and RAM writes to have value and address.
 ;
 ; Description:
 ; ============
@@ -59,15 +60,15 @@ CONSTANT	PA_DIG2,		04		; (o) digit 2 port address
 CONSTANT	PA_DIG1,		05		; (o) digit 1 port address
 CONSTANT	PA_DIG0,		06		; (o) digit 0 port address
 CONSTANT	PA_DP,			07		; (o) decimal points 3:0 port address
-CONSTANT	PA_RSVD,		08		; (o) *RESERVED* port address
+CONSTANT	PA_OOB,			08		; (o) Out of Bounds port address
 
 
 ; Interface registers
 CONSTANT	PA_CONN_EST,	09		; (i) Connect has been established
-CONSTANT	PA_CURSOR_CHECK,0A		; (o) Read/Write address request to block RAM
-CONSTANT	PA_PLACE_SHIP,	0B		; (o) Write to block RAM ship placement location
+CONSTANT	PA_CURSOR_CHECK,0A		; (o) Read address request to block RAM
+CONSTANT	PA_RAM_W_ADDR,	0B		; (o) Write to block RAM location
 CONSTANT	PA_VALID_FLAG,	0C		; (i) Requested data from RAM returned back, position is valid or not
-CONSTANT	PA_RAM_W_ADDR,	0D		; (o) Ship placement completed signal
+CONSTANT	PA_PLACE_DONE,	0D		; (o) Ship placement completed signal
 CONSTANT	PA_ORIEN,		0E		; (o) Orientation output
 CONSTANT	PA_SHIP_INFO,	0F		; (o) Ship Info output
 
@@ -81,16 +82,17 @@ CONSTANT	PA_DIG6,		14		; (o) digit 6 port address
 CONSTANT	PA_DIG5,		15		; (o) digit 5 port address
 CONSTANT	PA_DIG4,		16		; (o) digit 4 port address
 CONSTANT	PA_DP0704,		17		; (o) decimal points 7:4 port address
-CONSTANT	PA_RAM_W_VAL,	18		; (o) *RESERVED* alternate port address
+CONSTANT	PA_RAM_W_VAL,	18		; (o) Write to block RAM value
 
 ; Extended Rojobot interface registers.  These are alternate Port addresses
 CONSTANT	PA_DATA_RX,			19	; (i) Data to read in from the RAM
+CONSTANT	PA_SHIP_CHECK_0,	0A	; (o) Request to RAM to verify position is valid or not
 CONSTANT	PA_SHIP_CHECK_1,	1A	; (o) Request to RAM to verify position is valid or not
-CONSTANT	PA_SHIP_CHECK_2,	1B	; (o))Request to RAM to verify position is valid or not
+CONSTANT	PA_SHIP_CHECK_2,	1B	; (o) Request to RAM to verify position is valid or not
 CONSTANT	PA_SHIP_CHECK_3,	1C	; (o) Request to RAM to verify position is valid or not
 CONSTANT	PA_SHIP_CHECK_4,	1D	; (o) Request to RAM to verify position is valid or not
 CONSTANT	PA_DATA_TX,			1E	; (o) Data to write out to the RAM
-CONSTANT	PA_DATA_RAM,		1F	; (i) Address of data in the RAM
+CONSTANT	PA_DATA_RAM,		1F	; (i) Value of data in the RAM requested
 
 
 ; =====================================
@@ -123,6 +125,17 @@ CONSTANT	MAX_Y,	09
 CONSTANT	MIN_Y,	00	
 CONSTANT	INC_X,	10
 CONSTANT	INC_Y,	01
+
+;CONSTANT	RAM_EMPTY,	00
+;CONSTANT	RAM_MISS,	01
+;CONSTANT	RAM_HIT,	02
+CONSTANT	RAM_SHIP_H,	03
+;Extras, may be used in stretch goal for cooler looking ships
+CONSTANT	RAM_SHIP_V,	04
+CONSTANT	RAM_SHIP_N,	05
+CONSTANT	RAM_SHIP_E,	06
+CONSTANT	RAM_SHIP_S,	07
+CONSTANT	RAM_SHIP_W,	08
 
 CONSTANT	STATE_0,	00
 CONSTANT	STATE_1,	01
@@ -359,8 +372,9 @@ CONSTANT	SP_DIG4,		33		;
 CONSTANT  SP_STATE,   34  ; Current state of the state machine
 CONSTANT  SP_TURN,    35  ; Turn variable contains next direction to turn and how far
 CONSTANT  SP_ORIENT,  36  ; Orientation we need to turn to
-CONSTANT  SP_OLDX,    37  ; Old LocX value
-CONSTANT  SP_OLDY,    38  ; Old LocY value
+CONSTANT  SP_OOB,     37  ; Out of bounds value
+CONSTANT  SP_PLACE_DONE,    38  ; Done placing
+
 
 CONSTANT  SP_GAME_STATE, 	39
 CONSTANT  SP_PLAYER_NUMBER, 3A
@@ -377,7 +391,6 @@ CONSTANT  SP_RCVE_ACK, 		05
 CONSTANT  SP_RCVE_RESULT, 	06
 
 CONSTANT  ACK, 				FF
-
 ; ===============
 ; === main()  ===
 ; ===============
@@ -390,8 +403,8 @@ ADDRESS	000
 													;
 main:			INPUT 	s0, 	PA_SLSWTCH
 				COMPARE s0, 	MSK_SW0
-				JUMP 	Z, 		SET_PLAYER_ONE
-				JUMP 	NZ, 	SET_PLAYER_TWO
+				CALL 	Z, 		SET_PLAYER_ONE
+				CALL 	NZ, 	SET_PLAYER_TWO
 				CALL	init_btnluptbl				; initialize button to MotCtl lookup table
 				CALL	init_mvmttbl				; initialize movement to character code lookup table
 				LOAD	s1,		00					; clear the semaphore
@@ -400,6 +413,11 @@ main:			INPUT 	s0, 	PA_SLSWTCH
 				;STORE	s1,		SP_OLDDP			; and save the value	
 				LOAD 	s1,		STATE0          	; Start in state 0
 				STORE	s1,		SP_STATE
+				; clear Out of Bounds
+				LOAD	s1, 00
+				STORE	s1, SP_OOB
+				LOAD	s0, FALSE
+				STORE	s0, SP_PLACE_DONE
 				LOAD 	Cursor,	CURSOR_INIT         ; Initialize Cursor variable to center of the screen
 				LOAD	Orien,	EAST				; Initialize Orientation to East
 				LOAD	Ship_info,	55				; Initialize to 5 ships, current length 5
@@ -417,10 +435,25 @@ main:			INPUT 	s0, 	PA_SLSWTCH
 main_L0:		FETCH	s6,		SP_SEM				;		while (SP_SEMA == 0)  {}   // loop until isr updates rojobot registers
 				COMPARE	s6,		00				;
 				JUMP	Z,		main_L0				;
-				;CALL	DISP_X_Y					;			Display the X and Y coordinates on DIG[0] & DIG[1] -- ADDED BY JF
+				;CALL	next_loc					;			Dig[3:2] = nex LocX; Dig[1:0] = next LocY
 				CALL	next_mvmt					;			Dig[4] = next movement
 				;CALL	next_hdg					;			Dig[7:4] = next heading
 													;		}
+				CALL TURN
+													
+				;DEBUG CODE: place Cursor.X into Dig1, and Cursor.Y into Dig0
+				LOAD	s0, Cursor
+				AND		s0, Y_COOR
+				LOAD	Dig0, s0
+				LOAD	s0, Cursor
+				AND		s0, X_COOR
+				SR0		s0
+				SR0		s0
+				SR0		s0
+				SR0		s0
+				LOAD	Dig1, s0
+				
+													
 main_L2:		CALL	wr_alldigits				;		write all of the digits to the display
 				LOAD	s1,		Cursor				;		update LEDs with new sensor information
 				CALL	LED_wrleds					;
@@ -636,6 +669,10 @@ mvmt2cc:		LOAD	s2,		SP_MVMTBASE			; s2 gets base of movment conversion table
 ; that is handled in next_step based upon what state is set here.
 ; ========================================================================				
 next_mvmt:		
+		; clear Out of Bounds first
+		LOAD	s0, 00
+		STORE	s0, SP_OOB
+		
         FETCH   s0, SP_STATE      ; Determine what state we are in
         COMPARE s0, STATE0
         JUMP    Z,  next_mvmt_s0  ; calculate next movement for state 0
@@ -780,90 +817,98 @@ next_mvmt_s3:
 		
 next_mvmt_s3_n:
 		; Write values to RAM starting at anchor (Cursor) and subtracting Y value, ship_length times (s1)
+		LOAD	s0, RAM_SHIP_H	; Load place ship value into what value we are writing to ram
+		OUTPUT	s0, PA_RAM_W_VAL	; Tell the interface to write SHIP to RAM address
 		LOAD	s0,	Cursor	; s0 becomes temp_cursor
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_Y	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_Y	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_Y	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_Y	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		JUMP	next_mvmt_s3_done	; max length is 5, so don't need to check anymore
 
 next_mvmt_s3_e:
 		; Write values to RAM starting at anchor (Cursor) and adding X value, ship_length times (s1)
+		LOAD	s0, RAM_SHIP_H	; Load place ship value into what value we are writing to ram
+		OUTPUT	s0, PA_RAM_W_VAL	; Tell the interface to write SHIP to RAM address
 		LOAD	s0,	Cursor	; s0 becomes temp_cursor
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_X	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_X	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_X	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_X	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		JUMP	next_mvmt_s3_done	; max length is 5, so don't need to check anymore
 
 next_mvmt_s3_s:
 		; Write values to RAM starting at anchor (Cursor) and adding Y value, ship_length times (s1)
+		LOAD	s0, RAM_SHIP_H	; Load place ship value into what value we are writing to ram
+		OUTPUT	s0, PA_RAM_W_VAL	; Tell the interface to write SHIP to RAM address
 		LOAD	s0,	Cursor	; s0 becomes temp_cursor
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_Y	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_Y	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_Y	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		ADD		s0, INC_Y	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		JUMP	next_mvmt_s3_done	; max length is 5, so don't need to check anymore
 
 next_mvmt_s3_w:
 		; Write values to RAM starting at anchor (Cursor) and subtracting X value, ship_length times (s1)
+		LOAD	s0, RAM_SHIP_H	; Load place ship value into what value we are writing to ram
+		OUTPUT	s0, PA_RAM_W_VAL	; Tell the interface to write SHIP to RAM address
 		LOAD	s0,	Cursor	; s0 becomes temp_cursor
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_X	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_X	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_X	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		SUB		s1, 01		; decrement temp_ship_length
 		JUMP	Z,	next_mvmt_s3_done	; if temp_ship_length is zero, we are done
 		SUB		s0, INC_X	; Move temp_cursor one position
-		OUTPUT	s0, PA_PLACE_SHIP
+		OUTPUT	s0, PA_RAM_W_ADDR
 		JUMP	next_mvmt_s3_done	; max length is 5, so don't need to check anymore
 
         
@@ -887,6 +932,12 @@ next_mvmt_s4:
         ;JUMP    the_end             ; We have completed the track, shut off processing.
 		LOAD	s0,	TRUE
 		OUTPUT	s0, PA_PLACE_DONE
+		LOAD	s0, TRUE
+		STORE	s0, SP_PLACE_DONE
+		
+		;Testing purposes, set LED outputs to 1 for LED... upper I guess
+		LOAD	s1, FF
+		CALL LED_wrleds_hi
         RETURN
 
 ; --------------------------
@@ -1060,7 +1111,7 @@ out_of_bounds:
 		; However, the validate flag is set through the ISR reading in register values. We need to force this to set it to invalid
 		; Going to cheat and use a defined invalid location the hardware will pick up on and set the output as invalid
 		LOAD	s0, OUT_OF_BOUNDS
-		OUTPUT	s0, PA_CURSOR_CHECK
+		STORE	s0, SP_OOB
 		
 next_mvmt_go_s2_done:
 		RETURN	
@@ -1084,8 +1135,6 @@ next_mvmt_go_s4:
 ; ==============================================================================				
 
 			
-
-
 
 ;===============================================================================
 ;
@@ -1134,8 +1183,8 @@ SET_PLAYER_TWO: LOAD  s0, 	SP_PLAYER_TWO
 ;=======================  TURN FUNCTIONALITY   =================================
 ;
 ;===============================================================================
-TURN:			LOAD 	s0, 	PA_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
-				COMPARE s0, 	01
+TURN:			FETCH 	s0, 	SP_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
+				COMPARE s0, 	TRUE
 				JUMP 	NZ, 	ERROR
 
 				; GO TO THE RIGHT STATE
@@ -1206,7 +1255,7 @@ RIGHT:			LOAD 	s0, 	Cursor
 SEND_GUESS:		LOAD 	s0, 	Cursor
 				OUTPUT 	s0, 	PA_RAM_W_ADDR 		; GET THE CURRENT CURSOR POSITION
 				INPUT 	s1, 	PA_DATA_RAM	 		; GET THE DATA IN THAT RAM LOCATION
-				COMPARE s1, 	MISS 			 	; CHECK TO SEE IF ITS ALREADY BEEN GUESSED
+				COMPARE s1, 	RAM_MISS 			 	; CHECK TO SEE IF ITS ALREADY BEEN GUESSED
 				JUMP 	Z, 		ERROR 				; LOCATION ALREADY GUESSED
 				STORE  	s0,	 	SP_GUESS 			
 				OUTPUT 	s0, 	PA_DATA_TX 			; SEND THE GUESS
@@ -1235,7 +1284,7 @@ MARK_HIT:		FETCH 	s0, 	SP_HIT_COUNT
 				ADD 	s0, 	01
 				STORE 	s0, 	SP_HIT_COUNT
 				COMPARE s0, 	MAX_HITS
-				JUMP 	Z, 		MARK LOSE
+				JUMP 	Z, 		MARK_LOSE
 				LOAD 	s0, 	RAM_HIT 
 				JUMP 	SEND_MARK
 
@@ -1302,7 +1351,7 @@ GAME_OVER: 		JUMP GAME_OVER 						; INFINITE LOOP
 ;
 ;=======================  END JORDAN FLUTH    ==================================
 ;
-;===============================================================================
+;===============================================================================			
 
 ;##############################################
 ; This function was changed for Project 2 #####	
@@ -1325,12 +1374,15 @@ next_step_idle:
 		RETURN
 		
 next_step_active:
+		FETCH	s0, SP_OOB		; out of bounds signal
+		OUTPUT	s0, PA_OOB
 		LOAD	s0, Cursor
 		OUTPUT	s0,	PA_CURSOR_CHECK
 		LOAD	s0, Orien
 		OUTPUT	s0, PA_ORIEN
 		LOAD	s0, Ship_info
 		OUTPUT	s0, PA_SHIP_INFO
+
 		
 		RETURN
     
@@ -1546,4 +1598,3 @@ isr_L0:			FETCH		s6,		SP_OLDDP			;	toggle  decimal point 0 (rightmost)
 ADDRESS 3FF
 intvect:		JUMP	isr							; jump to interrupt service routine
 				
-					
