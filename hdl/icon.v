@@ -1,4 +1,4 @@
-`timescale 1ns / 1ps
+\`timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
 // 
 // Paul Long <pwl@pdx.edu> 
@@ -12,6 +12,7 @@
 //
 // Revision:
 // 	7 December 2014    PWL File Created
+//	8 December 2014	   AN File fixed (some bugs with signal not going out, tiles are still off-set)
 //  
 //
 // 
@@ -22,17 +23,17 @@ module ghost_ship(
     input      [9:0]  pixel_x,
     input      [9:0]  pixel_y,
     input      [7:0]  cursor,
-	input      [1:0]  orientation,
-	input      [2:0]  length,
+	input      [3:0]  orientation,
+	input      [3:0]  length,
 	
 	output reg        ghost_ship	
     );
 
 	// constants
-	localparam [1:0] NORTH = 2'd0,
-	                 EAST  = 2'd1,
-					 SOUTH = 2'd2,
-					 WEST  = 2'd3;	
+	localparam [3:0] NORTH = 4'd1,
+	                 EAST  = 4'd2,
+					 SOUTH = 4'd4,
+					 WEST  = 4'd8;	
 	
 	
 	
@@ -46,7 +47,7 @@ module ghost_ship(
 	always @(posedge clk) begin
 		case(orientation)
 			NORTH: begin
-				if ((tile_x == cursor_x) && (tile_y >= cursor_y - length) && (tile_y <= cursor_y)) begin
+				if ((tile_x == cursor_x) && (tile_y >= (cursor_y - length)) && (tile_y <= cursor_y)) begin
 					ghost_ship <= 1'b1;
 				end else begin
 					ghost_ship <= 1'b0;
@@ -54,18 +55,21 @@ module ghost_ship(
 			end
 			EAST:  begin
 				if ((tile_y == cursor_y) && (tile_x >= cursor_x) && (tile_x <= cursor_x + length)) begin
+				    ghost_ship <= 1'b1;
 				end else begin
 					ghost_ship <= 1'b0;
 				end
 			end
 			SOUTH: begin
 				if ((tile_x == cursor_x) && (tile_y >= cursor_y) && (tile_y <= cursor_y + length)) begin
+				    ghost_ship <= 1'b1;
 				end else begin
 					ghost_ship <= 1'b0;
 				end
 			end
 			WEST:  begin
 				if ((tile_y == cursor_y) && (tile_x >= cursor_x - length) && (tile_x <= cursor_x)) begin
+				    ghost_ship <= 1'b1;
 				end else begin
 					ghost_ship <= 1'b0;
 				end
