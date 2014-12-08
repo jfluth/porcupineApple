@@ -264,53 +264,77 @@ module Nexys4fpga (
 	wire ConnEstablished;
 //	assign ConnEstablished = 1'b1;	//For testing purposes
 	
-	wire [7:0] Cursor, RAMWriteAddress, RAMAddress;
-	wire [1:0] RAMReadVal;	// assign this as output from the dual port RAM
-	wire [3:0] RAMReadValExt;
-	wire	   RAMWriteEnable;
-	wire [1:0] RAMWriteVal;
+	wire [7:0] Cursor;
+    wire [9:0] RAMWriteAddress, UsRAMAddress;
+	wire [1:0] RAMReadVal;                     // assign this as output from the dual port RAM
+	wire [3:Us0] RAMReadValExt;
+	wire	   UsRAMWriteEnable;
+	wire [1:0] UsRAMWriteVal;
+    wire       UsRAMWriteEnableB;
+    wire [9:0] UsRAMAddressB;
+    wrie [3:0] RAMDataInB, RAMDataOutB;
+
 	
-	wire PlacementDone;	//ignore for now
+	wire [9:0] ThemRAMWriteAddress, ThemUsRamAddress;
+    wire [1:0] ThemRAMReadVal;
+    wire [3:Us0] ThemRAMReadValExt;
+    wire       ThemUsRAMWriteEnable;
+    wire [1:0] ThemUsRAMWriteVal;
+    wire       ThemUsRAMWriteEnableB;
+    wire [9:0] ThemUsRAMAddressB;
+    wrie [3:0] ThemRAMDataInB, ThemRAMDataOutB;
+
+    wire PlacementDone;	//ignore for now
 	
 	wire [3:0] Orientation;
 	wire [7:0] ShipInfo;
 	
 	wire enable;
-	assign enable = !RAMWriteEnable;
+	assign enable = !UsRAMWriteEnable;
 	
-	/*blk_mem_gen_0 MyShips (
-		.clka(clk),
-		.wea(RAMWriteEnable),
-		.addra(RAMAddress),
-		.dina(RAMWriteVal),
-		.clkb(clk),
-		.enb(enable),
-		.addrb(RAMAddress),
-		.doutb(RAMReadVal)
-
-	);*/
-	
-	assign RAMAddress = (RAMWriteEnable) ? RAMWriteAddress : Cursor;
-	assign RAMReadVal = RAMReadValExt[1:0];
+	assign UsRAMAddress = (UsRAMWriteEnable) ? RAMWriteAddress : Cursor;
+	assign RUsAMReadVal = RAMReadValExt[1:0];
 	
 	wire [3:0] temp_datab_output;
 	
-	tile_RAM_US tile_RAM_US (
-    /* synthesis syn_black_box black_box_pad_pin="clka,wea[0:0],addra[9:0],dina[3:0],douta[3:0],clkb,web[0:0],addrb[9:0],dinb[3:0],doutb[3:0]" */
-      .clka(clk),
-      .wea(RAMWriteEnable),
-      .addra({2'b00,RAMAddress}),  //10 bits?
-      .dina({2'b00,RAMWriteVal}),
-      .douta(RAMReadValExt),
+    
+    //
+	// us RAM
+    //
+    tile_RAM_US tile_RAM_US (
+      .clka  (clk),
+      .wea   (UsRAMWriteEnable),
+      .addra (UsRAMAddress),  
+      .dina  (UsRAMWriteVal),
+      .douta (UsRAMReadValExt),
       
-      .clkb(clk),
-      .web(1'b0),
-      .addrb(10'h000),
-      .dinb(4'h0),
-      .doutb(temp_datab_output)
+      .clkb  (clk),
+      .web   (UsRAMWriteEnableB),
+      .addrb (UsRAMAddressB),
+      .dinb  (RAMDataInB),
+      .doutb (RAMDataOutB)
     );
 	
-	reg [26:0] counter = 0;
+	//
+    // them RAM
+    //
+    tile_RAM_THEM tile_RAM_THEM (
+      .clka  (clk),
+      .wea   (ThemUsRAMWriteEnable),
+      .addra (ThemUsRAMAddress),
+      .dina  (ThemUsRAMWriteVal),
+      .douta (UsThemRAMReadValExt),
+      
+      .clkb  (clk),
+      .web   (ThemUsRAMWriteEnableB),
+      .addrb (ThemUsRamAddressB),
+      .dinb  (ThemDataInB),
+      .doutb (ThemDataOutb)
+    );
+    
+
+
+    reg [26:0] counter = 0;
 
 	);
     //
@@ -401,9 +425,9 @@ module Nexys4fpga (
 		.Cursor(Cursor),
 		//.CursorExtraCheck(CursorExtra),
 		.RAMWriteAddress(RAMWriteAddress),
-		.RAMWriteEnable(RAMWriteEnable),
+		.UsRAMWriteEnable(UsRAMWriteEnable),
 		.ReturnReadRAMValue(RAMReadVal),	// EXPAND if needed
-		.WriteValue(RAMWriteVal),			// EXPAND if needed
+		.WriteValue(UsRAMWriteVal),			// EXPAND if needed
 	
 		.PlacementDone(PlacementDone),
 	
@@ -488,17 +512,17 @@ module Nexys4fpga (
 		
 		.ghost_ship     (ghost_ship),
 		.cursor         (Cursor),
-        .us_ram_addr    (),
-        .them_ram_addr  (),
+        .us_ram_addr    (UsRAMAddressB),
+        .them_ram_addr  (ThemAddressB),
 		
-        .us_ram_data    (),
-        .them_ram_data  (),
+        .us_ram_data    (UsRAMDataOutB),
+        .them_ram_data  (ThemRAMDateOutB),
         .screen_color    ({vgaRed,vgaGreen,vgaBlue})
     );
     
 		
     ///////////////////////////////////////////////////////////////////////////    
-    // Instantiate Ghost ship icon controller
+    // Instantiate ghost ship icon controller
     ///////////////////////////////////////////////////////////////////////////
     ghost_ship #(/* No parameters in this module */)
     ghostShipcreen (
