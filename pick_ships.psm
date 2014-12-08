@@ -1170,12 +1170,16 @@ SET_PLAYER_ONE: LOAD  s0, 	SP_PLAYER_ONE
 				STORE s0,	SP_PLAYER_NUMBER
 				LOAD 	s0, 			SP_READ_BTNS
 				STORE 	s0, 			SP_GAME_STATE
+				LOAD 	s0, 			80
+				OUTPUT 	s0, 			PA_LEDS1508
 				RETURN
 
 SET_PLAYER_TWO: LOAD  s0, 	SP_PLAYER_TWO
 				STORE s0,	SP_PLAYER_NUMBER
 				LOAD 	s0, 			SP_RECEIVING
 				STORE 	s0, 			SP_GAME_STATE
+				LOAD 	s0, 			40
+				OUTPUT 	s0, 			PA_LEDS1508
 				RETURN
 
 ;===============================================================================
@@ -1186,6 +1190,8 @@ SET_PLAYER_TWO: LOAD  s0, 	SP_PLAYER_TWO
 TURN:			FETCH 	s0, 	SP_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
 				COMPARE s0, 	TRUE
 				JUMP 	NZ, 	ERROR
+				LOAD 	s0, 	AA
+				OUTPUT 	s0, 	PA_LEDS1508
 
 				; GO TO THE RIGHT STATE
 				FETCH 	s0, 	SP_GAME_STATE
