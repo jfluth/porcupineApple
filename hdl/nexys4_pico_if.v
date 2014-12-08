@@ -8,7 +8,6 @@
 // Revision History:
 // -----------------
 // Dec-2014		AN		Created this module for the BattleShipX in ECE540
-// Dec-2014		AN		is fixed
 //
 // Description:
 // ------------
@@ -136,7 +135,7 @@ module nexys4_pico_if (
     output reg [3:0]   decimal_point_lower, //decimal points in seven segment display
                        decimal_point_upper
 );
-
+    
     //reg [2:0]   ReadRqCnt = 0;
 	reg [7:0]	RamOutput = 0;		// This will be a combination of all potential RAM outputs
 	reg [7:0]   OutOfBounds = 0;
@@ -147,6 +146,32 @@ module nexys4_pico_if (
 	reg			SelectRAM = 0;
 	wire [1:0]	ReturnReadRAMValue;
 	assign ReturnReadRAMValue = (SelectRAM == `US_RAM) ? UsReturnReadRAMValue : ThemReturnReadRAMValue;
+	
+	reg [7:0] RX_DataLatch; 
+	reg    RX_DataReadyHold;
+	reg [3:0] RX_DataReadyHoldCount = 0;
+	
+	
+	always @ (posedge clk) begin
+	   if (RX_DataReady == 1'b1) begin
+	       RX_DataLatch <= RX_DataIn;
+	    end else begin
+	       RX_DataLatch <= RX_DataLatch;
+	    end
+	 end
+	 
+	 
+	 always @ (posedge clk) begin
+        if (RX_DataReady == 1'b1) begin
+            RX_DataReadyHold <= 1'b1;
+            RX_DataReadyHoldCount <= 9;
+         end else if (RX_DataReadyHoldCount > 0) begin
+            RX_DataReadyHoldCount <= RX_DataReadyHoldCount - 1;
+         end else begin
+            RX_DataReadyHold <= 1'b0;
+            RX_DataReadyHoldCount <= 0;
+         end
+      end
 	
 
 	reg    clearRamOutput = 0;
@@ -162,6 +187,7 @@ module nexys4_pico_if (
 	   else begin
 		  RamOutput <= RamOutput + UsReturnReadRAMValue;
 	   end
+	   dig7 <= 0;
 	end
 	
 	reg TX_counter = 0;
@@ -203,7 +229,7 @@ module nexys4_pico_if (
         8'h08 : in_port <= OutOfBounds;  
 		
 		// 0x09 Connection Established input and DATA_READY signal
-        `PA_CONN_EST : in_port <= {ConnEstablished,RX_DataReady,6'b0000000};	//conn established being sent to MSB in picoblaze
+        `PA_CONN_EST : in_port <= {ConnEstablished,RX_DataReadyHold,6'b0000000};	//conn established being sent to MSB in picoblaze
         
         // 0x0A and 0x0B are output address ports
         8'h0A : begin
@@ -249,7 +275,7 @@ module nexys4_pico_if (
         end
 		
 		`PA_DATA_RX : begin 
-			in_port <= RX_DataIn;	// Receive guess from other player over XB
+			in_port <= RX_DataLatch;	// Receive guess from other player over XB
 		end
         
         // 0x1A - 0x1D are outputs
@@ -279,7 +305,6 @@ module nexys4_pico_if (
 				in_port <= {6'b000000,UsReturnReadRAMValue}; //expand if needed
 			else
 				in_port <= {6'b000000,ThemReturnReadRAMValue}; //expand if needed
-				
 		end
 
         default : in_port <= 8'h00; 
