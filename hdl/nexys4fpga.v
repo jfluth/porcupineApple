@@ -293,6 +293,10 @@ module Nexys4fpga (
 	assign UsRAMAddress = (UsRAMWriteEnable) ? RAMWriteAddress : {2'b00,Cursor};
 	assign UsRAMReadVal = UsRAMReadValExt[1:0];
 	
+	//PWL I'm guessing here
+	assign ThemRAMAddress = (ThemRAMWriteEnable) ? ThemRAMWriteAddress: {2'b00,Cursor};
+	assign ThemRAMReadVal =  ThemRAMReadValExt[1:0];
+	
 	wire [3:0] temp_datab_output;
 	
     
