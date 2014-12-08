@@ -448,16 +448,7 @@ main_L0:		FETCH	s6,		SP_SEM				;		while (SP_SEMA == 0)  {}   // loop until isr u
 				CALL TURN
 													
 				;DEBUG CODE: place Cursor.X into Dig1, and Cursor.Y into Dig0
-				LOAD	s0, Cursor
-				AND		s0, Y_COOR
-				LOAD	Dig0, s0
-				LOAD	s0, Cursor
-				AND		s0, X_COOR
-				SR0		s0
-				SR0		s0
-				SR0		s0
-				SR0		s0
-				LOAD	Dig1, s0
+				CALL DISP_X_Y
 				
 													
 main_L2:		CALL	wr_alldigits				;		write all of the digits to the display
@@ -1400,7 +1391,11 @@ ACKED: 			LOAD 	s0, 	SP_READ_BTNS 		; UPDATE THE GAME STATE
 
 ERROR:			RETURN
 
-GAME_OVER: 		JUMP GAME_OVER 						; INFINITE LOOP
+GAME_OVER: 		FETCH 	s1, 	SP_GUESS 			; GET THE RAM ADDRESS
+				LOAD 	s0, 	RAM_HIT
+				OUTPUT 	s0, 	PA_RAM_W_VAL 		; VALUE OUT TO RAM
+				OUTPUT 	s1, 	PA_RAM_W_ADDR 		; RAM ADDRESS
+GAME_OVERR:		JUMP GAME_OVERR 						; INFINITE LOOP
 
 
 ;===============================================================================
