@@ -3,7 +3,7 @@
 ;
 ; Version:	1.3
 ; Author:	Andrew Northy
-; Date:		07-Dec-2014
+; Date:		08-Dec-2014
 ;
 ; Revision History
 ; ================
@@ -13,6 +13,8 @@
 ; 02-Dec-14    AN    Finished State 3 and 4, code is assembling, must be tested
 
 ; 06-Dec-14    AN    Updated constants and RAM writes to have value and address.
+; 08-Dec-14    AN	 Fixed bug with Orientation defaulting to NORTH if no buttons pressed during 
+; 08-Dec-14    AN    More bug fixes, previously could not place ships touching the border. Added Jordan's updated code as well
 ;
 ; Description:
 ; ============
@@ -125,6 +127,9 @@ CONSTANT	MAX_Y,	09
 CONSTANT	MIN_Y,	00	
 CONSTANT	INC_X,	10
 CONSTANT	INC_Y,	01
+
+CONSTANT	MAX_PLACE, 0A	; Tile placement cannot go past 09
+
 
 ;CONSTANT	RAM_EMPTY,	00
 ;CONSTANT	RAM_MISS,	01
@@ -418,9 +423,9 @@ main:			CALL	init_btnluptbl				; initialize button to MotCtl lookup table
 				LOAD 	Cursor,	CURSOR_INIT         ; Initialize Cursor variable to center of the screen
 				LOAD	Orien,	EAST				; Initialize Orientation to East
 				LOAD	Ship_info,	55				; Initialize to 5 ships, current length 5
-
+				
 				CALL PLAYER_ASSIGN
-		
+						
 				CALL	SS_wrdpts					; will be toggled in the interrupt handler
 				LOAD	s1,		03					; turn on decimal points 5 and 4 to offset the movement digit
 				CALL	SS_wrdpts_hi				; we don't need to save this value because these decimal points don't change
@@ -776,7 +781,7 @@ next_mvmt_s2:
 		JUMP	Z,	next_mvmt_s2_chk_right
 		COMPARE	s0,	MSK_BTN_CENTER
 		JUMP	Z,	next_mvmt_s2_chk_center
-		JUMP 	next_mvmt_go_s2
+		JUMP	next_mvmt_go_s2			; No button, or a combination of buttons were pressed, do not update Orien
 		
 next_mvmt_s2_chk_up:
 		LOAD	Orien,	NORTH	; Set Orientation to NORTH 
@@ -978,6 +983,7 @@ next_mvmt_go_s2_n:
 		; receive length in LSB..... must compare by subtracting with Y's value to ensure it fits in game board bounds
 		LOAD	s0,	Cursor		; Get Y value into s0, going to subtract length (s1) from it (go north)
 		AND		s0,	Y_COOR
+		ADD		s0, 01			; Adding 1 to the value, to allow for minimum to work
 		SUB		s0, s1			; y_coor = y_coor - length
 		JUMP	C,	out_of_bounds; Carry flag, when set, indicates an underflow (borrow) occurred
 		;s1 still contains Ship_Length
@@ -1012,7 +1018,7 @@ next_mvmt_go_s2_e:
 		SR0		s0
 		SR0		s0
 		ADD		s0, s1			; x_coor = x_coor + length
-		LOAD	s1,	MAX_X
+		LOAD	s1,	MAX_PLACE	;
 		COMPARE	s1,	s0			; check if MAX_X < (X_coor + length)
 		JUMP	C,	out_of_bounds; CARRY is set If sX < sY
 		;s1 no longer contains Ship_Length, reload it
@@ -1046,7 +1052,7 @@ next_mvmt_go_s2_s:
 		LOAD	s0,	Cursor		; Get Y value into s0, going to add length (s1) to it (go south)
 		AND		s0,	Y_COOR
 		ADD		s0, s1			; y_coor = y_coor + length
-		LOAD	s1,	MAX_Y
+		LOAD	s1,	MAX_PLACE
 		COMPARE	s1,	s0			; check if MAX_Y < (Y_coor + length)
 		JUMP	C,	out_of_bounds; CARRY is set If sX < sY
 		;s1 no longer contains Ship_Length, reload it
@@ -1082,6 +1088,7 @@ next_mvmt_go_s2_w:
 		SR0		s0
 		SR0		s0
 		SR0		s0
+		ADD		s0, 01			; Adding 1 to the value, to allow for minimum to work
 		SUB		s0, s1			; x_coor = x_coor - length
 		JUMP	C,	out_of_bounds; Carry flag, when set, indicates an underflow (borrow) occurred
 		;s1 still contains Ship_Length
@@ -1167,12 +1174,12 @@ DISP_X_Y:		LOAD		s0,		Cursor				; Dig[3:2] gets X-coordinate
 ;
 ;===============================================================================
 PLAYER_ASSIGN: 	LOAD 	s0, 	PA_SLSWTCH
-				OUTPUT 	s0, 	PA_LEDS1508
-				COMPARE s0, 	MSK_SW0
-				JUMP 	Z, 		SET_PLAYER_ONE
-				JUMP 	NZ, 	SET_PLAYER_TWO
-
-
+ 				OUTPUT 	s0, 	PA_LEDS1508
+ 				COMPARE s0, 	MSK_SW0
+ 				JUMP 	Z, 		SET_PLAYER_ONE
+ 				JUMP 	NZ, 	SET_PLAYER_TWO
+				
+				
 SET_PLAYER_ONE: LOAD  s0, 	SP_PLAYER_ONE
 				STORE s0,	SP_PLAYER_NUMBER
 				LOAD 	s0, 			SP_READ_BTNS
@@ -1199,7 +1206,6 @@ TURN:			FETCH 	s0, 	SP_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
 				JUMP 	NZ, 	ERROR
 				LOAD 	s0, 	AA
 				OUTPUT 	s0, 	PA_LEDS1508
-
 
 				; GO TO THE RIGHT STATE
 				FETCH 	s0, 	SP_GAME_STATE
@@ -1238,8 +1244,9 @@ READBTN:		;CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
 				JUMP 	Z,		SEND_GUESS
 				JUMP 	ERROR 
 
+
 UP:				LOAD 	s0, 	Cursor
-				AND		s0,		Y_COOR		
+				AND		s0,		Y_COOR	
 				COMPARE s0, 	MIN_Y
 				JUMP 	Z, 		ERROR
 				SUB 	Cursor, INC_Y
@@ -1249,7 +1256,7 @@ UP:				LOAD 	s0, 	Cursor
 				RETURN
 
 DOWN:			LOAD 	s0, 	Cursor
-				AND		s0,		Y_COOR	
+				AND 	s0, 	Y_COOR
 				COMPARE s0, 	MAX_Y
 				JUMP 	Z, 		ERROR
 				ADD 	Cursor, INC_Y
@@ -1269,7 +1276,7 @@ LEFT:			LOAD 	s0, 	Cursor
 				RETURN
 
 RIGHT:			LOAD 	s0, 	Cursor
-				AND		s0,		X_COOR	
+				AND 	s0, 	X_COOR
 				COMPARE s0, 	MAX_X
 				JUMP 	Z, 		ERROR
 				ADD 	Cursor, INC_X
