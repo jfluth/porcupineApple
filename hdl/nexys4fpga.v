@@ -3,8 +3,8 @@
 // Copyright Roy Kravitz, 2008-2013, 2014, 2015
 // 
 // Created By:		Roy Kravitz and Dave Glover
-// Updated By:      Andrew Northy
-// Last Modified:	06-Dec-2014 (AN)
+// Updated By:      Andrew Northy & Paul Long
+// Last Modified:	07-Dec-2014 (PWL)
 //
 // Revision History:
 // -----------------
@@ -16,6 +16,7 @@
 // Oct-2014     AN      Modified based on ECE540 Project 1 requirements
 // Oct-2014     AN      Modified for Project 2 top-level requirements 
 // Dec-2014     AN      Modified for Final project
+// Dec-2014		PWL		Added video subsystem
 //
 // Description:
 // ------------
@@ -263,38 +264,77 @@ module Nexys4fpga (
 	wire ConnEstablished;
 	assign ConnEstablished = 1'b1;	//For testing purposes
 	
-	wire [7:0] Cursor, RAMWriteAddress, RAMAddress;
-	wire [1:0] RAMReadVal;	// assign this as output from the dual port RAM
-	wire [3:0] RAMReadValExt;
-	wire	   RAMWriteEnable;
-	wire [1:0] RAMWriteVal;
+	wire [7:0] Cursor;
+    wire [9:0] RAMWriteAddress, UsRAMAddress;
+	wire [1:0] RAMReadVal;                     // assign this as output from the dual port RAM
+	wire [3:Us0] RAMReadValExt;
+	wire	   UsRAMWriteEnable;
+	wire [1:0] UsRAMWriteVal;
+    wire       UsRAMWriteEnableB;
+    wire [9:0] UsRAMAddressB;
+    wrie [3:0] RAMDataInB, RAMDataOutB;
+
 	
-	wire PlacementDone;	//ignore for now
+	wire [9:0] ThemRAMWriteAddress, ThemUsRamAddress;
+    wire [1:0] ThemRAMReadVal;
+    wire [3:Us0] ThemRAMReadValExt;
+    wire       ThemUsRAMWriteEnable;
+    wire [1:0] ThemUsRAMWriteVal;
+    wire       ThemUsRAMWriteEnableB;
+    wire [9:0] ThemUsRAMAddressB;
+    wrie [3:0] ThemRAMDataInB, ThemRAMDataOutB;
+
+    wire PlacementDone;	//ignore for now
 	
 	wire [3:0] Orientation;
 	wire [7:0] ShipInfo;
 	
 
-	assign RAMAddress = (RAMWriteEnable) ? RAMWriteAddress : Cursor;
-	assign RAMReadVal = RAMReadValExt[1:0];
+
+	assign UsRAMAddress = (UsRAMWriteEnable) ? RAMWriteAddress : Cursor;
+	assign UsRAMReadVal = RAMReadValExt[1:0];
 	
 	wire [3:0] temp_datab_output;
 	
-	tile_RAM_US tile_RAM_US (
-      .clka(clk),
-      .wea(RAMWriteEnable),
-      .addra({2'b00,RAMAddress}),  //10 bits?
-      .dina({2'b00,RAMWriteVal}),
-      .douta(RAMReadValExt),
+    
+    //
+	// us RAM
+    //
+    tile_RAM_US tile_RAM_US (
+      .clka  (clk),
+      .wea   (UsRAMWriteEnable),
+      .addra (UsRAMAddress),  
+      .dina  (UsRAMWriteVal),
+      .douta (UsRAMReadValExt),
+
       
-      .clkb(clk),
-      .web(1'b0),
-      .addrb(10'h000),
-      .dinb(4'h0),
-      .doutb(temp_datab_output)
+      .clkb  (clk),
+      .web   (UsRAMWriteEnableB),
+      .addrb (UsRAMAddressB),
+      .dinb  (RAMDataInB),
+      .doutb (RAMDataOutB)
     );
 	
-	reg [26:0] counter = 0;
+	//
+    // them RAM
+    //
+    tile_RAM_THEM tile_RAM_THEM (
+      .clka  (clk),
+      .wea   (ThemUsRAMWriteEnable),
+      .addra (ThemUsRAMAddress),
+      .dina  (ThemUsRAMWriteVal),
+      .douta (UsThemRAMReadValExt),
+      
+      .clkb  (clk),
+      .web   (ThemUsRAMWriteEnableB),
+      .addrb (ThemUsRamAddressB),
+      .dinb  (ThemDataInB),
+      .doutb (ThemDataOutb)
+    );
+    
+
+
+    reg [26:0] counter = 0;
 
 	
     //
@@ -377,9 +417,9 @@ module Nexys4fpga (
 		.Cursor(Cursor),
 		//.CursorExtraCheck(CursorExtra),
 		.RAMWriteAddress(RAMWriteAddress),
-		.RAMWriteEnable(RAMWriteEnable),
+		.UsRAMWriteEnable(UsRAMWriteEnable),
 		.ReturnReadRAMValue(RAMReadVal),	// EXPAND if needed
-		.WriteValue(RAMWriteVal),			// EXPAND if needed
+		.WriteValue(UsRAMWriteVal),			// EXPAND if needed
 	
 		.PlacementDone(PlacementDone),
 	
@@ -420,61 +460,76 @@ module Nexys4fpga (
     
     
     // adding Paul's stuff
+	wire			ghost_ship; //icon to dynamic_screen connection
+	wire	[9:0]	pixRow;
+	wire	[9:0]	pixCol;
+	wire			vidOn;
+	wire			pixClock;
+	
+	
     ///////////////////////////////////////////////////////////////////////////	
-        // Instantiate Pixel Clock
-        ///////////////////////////////////////////////////////////////////////////
-        pix_clk_25MHz    pixClock25 (
-            .clk_in1        (clk),
-            .pix_clk_25MHz    (pixClock),
-            .reset          (sysreset)
-        );
+    // Instantiate Pixel Clock
+    ///////////////////////////////////////////////////////////////////////////
+    pix_clk_25MHz    pixClock25 (
+        .clk_in1        (clk),
+        .pix_clk_25MHz  (pixClock),
+        .reset          (sysreset)
+    );
         
         
-        ///////////////////////////////////////////////////////////////////////////    
-        // Instantiate DTG
-        ///////////////////////////////////////////////////////////////////////////
-        dtg #(/* Keeping parameter defaults */)
-        dtg (
-            .clock            (pixClock),
-            .rst            (sysreset),
-            .horiz_sync        (Hsync),
-            .vert_sync        (Vsync),
-            .video_on        (vidOn),
-            .pixel_row        (pixRow), 
-            .pixel_column    (pixCol)
-        );
-    
-        ///////////////////////////////////////////////////////////////////////////    
-        // Instantiate video subsystem
-        ///////////////////////////////////////////////////////////////////////////
-    
-        dynamic_screen #(/* No parameters in this module */)
-        dynamicScreen (
-            .clk            (clk),
-            .rst            (sysreset),
-            .pixel_x        (pixCol),
-            .pixel_y        (pixRow),
-            .vid_on            (vidOn),
-            .us_ram_addr    (),//NC for testing
-            .them_ram_addr  (),//NC for testing
-            .us_ram_data    (2'b00),
-            .them_ram_data  (2'b01),
-            .screen_color    ({vgaRed,vgaGreen,vgaBlue})
-        );
-    
-    /* dynamic_screen VideoController (
-        .clk(sysclk),
-        .rst(sysreset),
-        .pixel_x(pixel_x),
-        .pixel_y(pixel_y),
-        .vid_on(vid_on),
-        .us_ram_data(us_ram_data), //-PWL this will have to get wider if we add nice ship display
-        .them_ram_data(them_ram_data),
-        .us_ram_addr(us_ram_addr),
-        .them_ram_addr(them_ram_addr),
-        .screen_color(screen_color)
+    ///////////////////////////////////////////////////////////////////////////    
+    // Instantiate DTG
+    ///////////////////////////////////////////////////////////////////////////
+    dtg #(/* Keeping parameter defaults */)
+    dtg (
+        .clock          (pixClock),
+        .rst            (sysreset),
+        .horiz_sync     (Hsync),
+        .vert_sync      (Vsync),
+        .video_on       (vidOn),
+        .pixel_row      (pixRow), 
+        .pixel_column   (pixCol)
     );
     
+    ///////////////////////////////////////////////////////////////////////////    
+    // Instantiate video subsystem
+    ///////////////////////////////////////////////////////////////////////////
+    dynamic_screen #(/* No parameters in this module */)
+    dynamicScreen (
+        .clk            (clk),
+        .rst            (sysreset),
+        .pixel_x        (pixCol),
+        .pixel_y        (pixRow),
+        .vid_on         (vidOn),
+		
+		.ghost_ship     (ghost_ship),
+		.cursor         (Cursor),
+        .us_ram_addr    (UsRAMAddressB),
+        .them_ram_addr  (ThemAddressB),
+		
+        .us_ram_data    (UsRAMDataOutB),
+        .them_ram_data  (ThemRAMDateOutB),
+        .screen_color    ({vgaRed,vgaGreen,vgaBlue})
+    );
+    
+		
+    ///////////////////////////////////////////////////////////////////////////    
+    // Instantiate ghost ship icon controller
+    ///////////////////////////////////////////////////////////////////////////
+    ghost_ship #(/* No parameters in this module */)
+    ghostShipcreen (
+		.clk			(clk),
+		.rst			(sysreset),
+		.pixel_x		(pixCol),
+		.pixel_y		(pixRow),
+		.cursor			(Cursor),
+		.orientation	(Orientation),
+		.length			(ShipInfo[3:0]),
+		.ghost_ship		(ghost_ship)
+	);
+	
+	
+	/*
     //temporary regs     
     reg [9:0]   pixel_x, pixel_y, us_ram_addr, them_ram_addr;
     reg vid_on;
@@ -482,55 +537,5 @@ module Nexys4fpga (
     reg [11:0] screen_color; */
      
 
-    // Modules for Video output generation (VGA controller)
-    /*display_timing_gen 
-    #(
-       .RESET_POLARITY_LOW(1)
-    ) DTG 
-    (
-        .clk(clk_out_25mhz),        // Clocked at 25 MHz
-        .reset(sysreset),
-        
-        .vert_sync(Vsync),  				
-        .horiz_sync(Hsync),                    
-        .pixel_row(pixel_row),              // output display is 640 x 480, 480 rows
-        .pixel_column(pixel_column),           // and 640 columns
-        .video_on(video_on)
-    );
-  
-    icon_gen 
-    #(
-        .RESET_POLARITY_LOW(1)
-    ) ICON 
-    (
-        .clk(clk_out_25mhz),        // Clocked at 25 MHz
-        .reset(sysreset),
-        
-        .LocX(locX),  				
-        .LocY(locY),
-        .BotInfo(bot_info),                    
-        .pixel_row(pixel_row),              // output display is 640 x 480, 480 rows
-        .pixel_column(pixel_column),           // and 640 columns
-        
-        .icon_pixel(icon_pixel)            // 00 = transparent; 01, 10, 11 = three icon color choices;
-    );
     
-    // Takes color inputs from ICON and BotSim (world map) and translate them into colors to be drawn onto the screen
-    colorizer 
-    #(
-         .RESET_POLARITY_LOW(1)
-    ) COLORIZER 
-    (
-        .clk(clk_out_25mhz),        // Clocked at 25 MHz
-        .reset(sysreset),
-        
-        .video_on(video_on),        // Signal from DTG, video on for this pixel or not
-        .world_pixel(world_pixel),  // Color from BotSim for the world map
-        .icon_pixel(icon_pixel),    // color from ICON for icon color (or transparent)
-        
-        .vgaRed(vgaRed),
-        .vgaGreen(vgaGreen),
-        .vgaBlue(vgaBlue)
-    );*/
-
 endmodule

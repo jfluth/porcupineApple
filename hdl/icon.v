@@ -16,7 +16,7 @@
 //
 // 
 //////////////////////////////////////////////////////////////////////////////////
-module dynamic_screen(
+module ghost_ship(
 	input             clk,
 	input             rst,
     input      [9:0]  pixel_x,
