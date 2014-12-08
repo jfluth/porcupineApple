@@ -29,6 +29,7 @@ module dynamic_screen(
 	
 	input             ghost_ship,
 	input      [7:0]  cursor,
+	input      [1:0]  placement_done,
 	
 	input      [1:0]  us_ram_data, //-PWL this will have to get wider if we add nice ship display
 	input      [1:0]  them_ram_data,
@@ -89,6 +90,7 @@ module dynamic_screen(
 	reg  [9:0]  cursor_y;
 	
 	assign temp_y = (pixel_y - 10'd96);
+
 	
 	// if we are in the tiles screen region
 	// look up what is in what tile and paint it
@@ -119,9 +121,10 @@ module dynamic_screen(
             if (pixel_x < 320) begin
 				// we are in tiles_us region
 				// paint the cursor if needed
-				if ({cursor_x,cursor_y} == {us_ram_x,us_ram_y}) begin
+				// if we are not placing ships we don't need the cursor on this side
+				if (({cursor_x,cursor_y} == {us_ram_x,us_ram_y}) && ~placement_done[0]) begin
 					screen_color <= YELLOW;
-				// paint the ship being activle placed
+				// paint the ship being actively placed
 				end 
 				else if (ghost_ship) begin
 					screen_color <= ship_rom_data;
@@ -140,9 +143,11 @@ module dynamic_screen(
 			else begin
 				//we are in tiles_them region
 				// paint the cursor if needed
-				if ({cursor_x,cursor_y} == {them_ram_x,them_ram_y}) begin
+				// if we are placing ships we don't need cursor on this side
+				// if it is not our turn, we don't need cursor on this side
+				if (({cursor_x,cursor_y} == {them_ram_x,them_ram_y}) && placement_done) begin
 					screen_color <= YELLOW;
-				// paint the ship being activle placed
+				// paint the ship being actively placed
 				end 
 				else begin
 					case (them_ram_data)

@@ -468,6 +468,7 @@ module Nexys4fpga (
 	wire	[9:0]	pixCol;
 	wire			vidOn;
 	wire			pixClock;
+	wire    [1:0]   placement_done; //signal from Jordan/Andrew that player is in active turn
 	
 	
     ///////////////////////////////////////////////////////////////////////////	
@@ -507,6 +508,8 @@ module Nexys4fpga (
 		
 		.ghost_ship     (ghost_ship),
 		.cursor         (Cursor),
+		.placement_done (PlacementDone),
+		
         .us_ram_addr    (UsRAMAddressB),
         .them_ram_addr  (ThemRAMAddressB),
 		
