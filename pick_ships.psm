@@ -79,7 +79,7 @@ CONSTANT	PA_SHIP_INFO,	0F		; (o) Ship Info output
 CONSTANT	PA_PBTNS_ALT,	10		; (i) pushbutton inputs alternate port address
 CONSTANT	PA_SLSWTCH1508,	11		; (i) slide switches 15:8 (high byte of switches
 CONSTANT	PA_LEDS1508,	12		; (o) LEDs 15:8 (high byte of switches)
-CONSTANT	PA_DIG7,		13		; (o) digit 7 port address
+CONSTANT	PA_RAM_SELECT,	13		; (o) digit 7 port address
 CONSTANT	PA_DIG6,		14		; (o) digit 6 port address
 CONSTANT	PA_DIG5,		15		; (o) digit 5 port address
 CONSTANT	PA_DIG4,		16		; (o) digit 4 port address
@@ -448,16 +448,7 @@ main_L0:		FETCH	s6,		SP_SEM				;		while (SP_SEMA == 0)  {}   // loop until isr u
 				CALL TURN
 													
 				;DEBUG CODE: place Cursor.X into Dig1, and Cursor.Y into Dig0
-				LOAD	s0, Cursor
-				AND		s0, Y_COOR
-				LOAD	Dig0, s0
-				LOAD	s0, Cursor
-				AND		s0, X_COOR
-				SR0		s0
-				SR0		s0
-				SR0		s0
-				SR0		s0
-				LOAD	Dig1, s0
+				CALL DISP_X_Y
 				
 													
 main_L2:		CALL	wr_alldigits				;		write all of the digits to the display
@@ -521,54 +512,7 @@ wr_alldigits:										; Digits 0 to 3 are stored in registers
 ; === init_btnluptbl() - initialize button translation lookup table in SP RAM ===
 ; === Registers affected: s0, s1                                              ===
 ; ===============================================================================
-init_btnluptbl:	LOAD	s0,		SP_BTNBASE			; s0 gets base of button translation lookup table
-				LOAD	s1,		SP_LSRS				; s1 gets values for 0x00								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_LORR				; s1 gets values for 0x01								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index				
-				LOAD	s1,		SP_LSRF				; s1 gets values for 0x02								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_LSRFR			; s1 gets values for 0x03								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index	
-				LOAD	s1,		SP_LRRS				; s1 gets values for 0x04								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_LRRR				; s1 gets values for 0x05							
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index				
-				LOAD	s1,		SP_LRRF				; s1 gets values for 0x06								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_LRRFR			; s1 gets values for 0x07								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_LFRS				; s1 gets values for 0x08								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_LFRR				; s1 gets values for 0x09								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index				
-				LOAD	s1,		SP_LFRF				; s1 gets values for 0x0A								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_LFRFR			; s1 gets values for 0x0B								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index	
-				LOAD	s1,		SP_LFRRS			; s1 gets values for 0x0C								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_LFRRR			; s1 gets values for 0x0D							
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index				
-				LOAD	s1,		SP_LFRRF			; s1 gets values for 0x0E								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_LFRRFR			; s1 gets values for 0x0F								
-				STORE	s1,		(s0)				; store the entry in the table
+init_btnluptbl:	
 				RETURN								; done...at last			
 				
 
@@ -579,11 +523,7 @@ init_btnluptbl:	LOAD	s0,		SP_BTNBASE			; s0 gets base of button translation look
 ; === Result (Motor Control register value) is returned in s1               ===
 ; === s0 (Button value) is not changed                                      ===
 ; =============================================================================
-btn2mot:		LOAD	s2,		SP_BTNBASE			; s2 gets base of button conversion table
-				LOAD	s1,		s0					; mask out upper nibble of buttons
-				AND	s1,		MSKLOWNIB			; 
-				ADD	s2,		s1					; s2 = Base + offset into table		
-				FETCH	s1,		(s2)				; and fetch the entry
+btn2mot:		
 				RETURN															
 
 				
@@ -1238,10 +1178,7 @@ TURN:			FETCH 	s0, 	SP_PLACE_DONE    	; WAIT UNTIL THE SHIPS HAVE BEEN PLACED
 				JUMP 	ERROR
 
 
-READBTN:		;CALL	DEB_rdbtns					; Read the pushbuttons. buttons returned in s0
-				;CALL	btn2mot						; and calculate new MotCtl - returned in s1
-
-				LOAD	s0, But_input				; Read button input
+READBTN:		LOAD	s0, But_input				; Read button input
 				AND		s0, MSK_ALLBTNS				; Mask out just the buttons
 				COMPARE	s0, MSK_BTN_UP				; See if only the up button was pressed
 
@@ -1299,9 +1236,11 @@ RIGHT:			LOAD 	s0, 	Cursor
 				RETURN
 
 SEND_GUESS:		LOAD 	s0, 	Cursor
-				OUTPUT 	s0, 	PA_RAM_W_ADDR 		; GET THE CURRENT CURSOR POSITION
+				LOAD 	s3, 	01
+				OUTPUT  s3, 	PA_RAM_SELECT
+				OUTPUT 	s0, 	PA_CURSOR_CHECK		; GET THE CURRENT CURSOR POSITION
 				INPUT 	s1, 	PA_DATA_RAM	 		; GET THE DATA IN THAT RAM LOCATION
-				COMPARE s1, 	RAM_MISS 			 	; CHECK TO SEE IF ITS ALREADY BEEN GUESSED
+				COMPARE s1, 	RAM_MISS 			; CHECK TO SEE IF ITS ALREADY BEEN GUESSED
 				JUMP 	Z, 		ERROR 				; LOCATION ALREADY GUESSED
 				STORE  	s0,	 	SP_GUESS 			
 				OUTPUT 	s0, 	PA_DATA_TX 			; SEND THE GUESS
@@ -1323,7 +1262,9 @@ RECEIVE_GUESS:	INPUT 	s0, 	PA_CONN_EST
 
 				INPUT 	s0, 	PA_DATA_RX 	 		; GET THE GUESS FROM THE OTHER PLAYER
 				LOAD 	s1, 	s0
-				OUTPUT 	s1, 	PA_RAM_W_ADDR 	 	; SEND THE XY TO THE RAM
+				LOAD 	s3, 	00
+				OUTPUT  s3, 	PA_RAM_SELECT
+				OUTPUT 	s1, 	PA_CURSOR_CHECK 	; SEND THE XY TO THE RAM
 				INPUT 	s0, 	PA_DATA_RAM	 		; READ DATA AT THAT LOCATION
 
 				COMPARE s0, 	RAM_SHIP
@@ -1364,6 +1305,8 @@ RCVE_RESULT: 	INPUT 	s0, 	PA_CONN_EST
 				JUMP 	Z, 		GAME_OVER 			; INFINITE LOOP IF FINISHED
 
 				FETCH 	s1, 	SP_GUESS 			; GET THE RAM ADDRESS
+				LOAD 	s3, 	00
+				OUTPUT  s3, 	PA_RAM_SELECT
 				OUTPUT 	s0, 	PA_RAM_W_VAL 		; VALUE OUT TO RAM
 				OUTPUT 	s1, 	PA_RAM_W_ADDR 		; RAM ADDRESS
 				LOAD 	s0, 	SP_SEND_ACK			; UPDATE THE GAME STATE
@@ -1400,7 +1343,11 @@ ACKED: 			LOAD 	s0, 	SP_READ_BTNS 		; UPDATE THE GAME STATE
 
 ERROR:			RETURN
 
-GAME_OVER: 		JUMP GAME_OVER 						; INFINITE LOOP
+GAME_OVER: 		FETCH 	s1, 	SP_GUESS 			; GET THE RAM ADDRESS
+				LOAD 	s0, 	RAM_HIT
+				OUTPUT 	s0, 	PA_RAM_W_VAL 		; VALUE OUT TO RAM
+				OUTPUT 	s1, 	PA_RAM_W_ADDR 		; RAM ADDRESS
+GAME_OVERR:		JUMP GAME_OVERR 						; INFINITE LOOP
 
 
 ;===============================================================================
