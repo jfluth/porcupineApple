@@ -80,10 +80,13 @@ module dynamic_screen(
 	reg  [15:0] logo_rom_y;
 	reg  [15:0] logo_rom_addr;
 	wire [11:0] logo_rom_data;
-	reg  [9:0]  temp_y;
+	//reg  [9:0]  temp_y;
+	wire  [9:0]  temp_y;
 	
 	reg  [9:0]  cursor_x;
 	reg  [9:0]  cursor_y;
+	
+	assign temp_y = (pixel_y - 10'd100);
 	
 	// if we are in the tiles screen region
 	// look up what is in what tile and paint it
@@ -98,14 +101,14 @@ module dynamic_screen(
 			tile_rom_y    <= pixel_y[4:0];
 			tile_rom_addr <= {tile_rom_y, tile_rom_x};
 			
-			temp_y        <= (pixel_y - 10'd100);
+			//temp_y        <= (pixel_y - 10'd100);
 			us_ram_x      <= {5'b0, pixel_x[9:5]};
 			us_ram_y      <= {5'b0, temp_y[9:5]};
-			us_ram_addr   <= {us_ram_y,us_ram_x};
+			us_ram_addr   <= {us_ram_x,us_ram_y};
 			
 			them_ram_x    <= {5'b0, (pixel_x[9:5] - 5'd10)};
 			them_ram_y    <= {5'b0, temp_y[9:5]};
-			them_ram_addr <= {them_ram_y,them_ram_x};
+			them_ram_addr <= {them_ram_x,them_ram_y};
 			
 			// get current cursor position
 			cursor_x      <= {6'b0, cursor[7:4]};
