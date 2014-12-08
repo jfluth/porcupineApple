@@ -103,7 +103,7 @@ module dynamic_screen(
 			us_ram_y      <= {5'b0, temp_y[9:5]};
 			us_ram_addr   <= {us_ram_y,us_ram_x};
 			
-			them_ram_x    <= {5'b0, (pixel_x[9:5] - 5'd10)}
+			them_ram_x    <= {5'b0, (pixel_x[9:5] - 5'd10)};
 			them_ram_y    <= {5'b0, temp_y[9:5]};
 			them_ram_addr <= {them_ram_y,them_ram_x};
 			
