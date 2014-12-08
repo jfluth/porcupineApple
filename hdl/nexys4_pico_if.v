@@ -8,6 +8,7 @@
 // Revision History:
 // -----------------
 // Dec-2014		AN		Created this module for the BattleShipX in ECE540
+// Dec-2014		AN		is fixed
 //
 // Description:
 // ------------
@@ -34,7 +35,6 @@
 // Interface registers
 `define	PA_CONN_EST		8'h09		// (i) Connect has been established
 `define	PA_CURSOR_CHECK	8'h0A		// (o) Read/Write address request to block RAM
-//`define	PA_PLACE_SHIP	8'h0B		// (o) Write to block RAM ship placement location
 `define	PA_RAM_W_ADDR	8'h0B		// (o) Write to block RAM location
 `define	PA_VALID_FLAG	8'h0C		// (i) Requested data from RAM returned back, position is valid or not
 `define	PA_PLACE_DONE	8'h0D		// (o) Ship placement completed signal
@@ -49,7 +49,7 @@
 `define	PA_PBTNS_ALT	8'h10		// (i) pushbutton inputs alternate port address
 `define	PA_SLSWTCH1508	8'h11		// (i) slide switches 15:8 (high byte of switches
 `define	PA_LEDS1508		8'h12		// (o) LEDs 15:8 (high byte of switches)
-`define	PA_DIG7			8'h13		// (o) digit 7 port address
+`define	PA_RAM_SELECT	8'h13		// (o) digit 7 port address
 `define	PA_DIG6			8'h14		// (o) digit 6 port address
 `define	PA_DIG5			8'h15		// (o) digit 5 port address
 `define	PA_DIG4			8'h16		// (o) digit 4 port address
@@ -70,6 +70,9 @@
 `define	VALID_FLAG		8'h01
 `define	INVALID_FLAG	8'h00
 
+`define	US_RAM			1'b0
+`define	THEM_RAM		1'b1
+
 module nexys4_pico_if (
     input              clk,
 	
@@ -84,16 +87,29 @@ module nexys4_pico_if (
     input   ConnEstablished,   //input to picoblaze, connection established signal
 	
 	output	reg	[7:0]	Cursor,
-	//output  reg [7:0]	CursorExtraCheck,
-	output	reg	[7:0]	RAMWriteAddress,
-	output	reg			RAMWriteEnable,
-	input		[1:0]	ReturnReadRAMValue,	// EXPAND if needed
-	output	reg	[1:0]	WriteValue,			// EXPAND if needed
+	
+	output	reg	[7:0]	UsRAMReadAdress,
+	output	reg	[7:0]	UsRAMWriteAddress,		// Our ships
+	output	reg			UsRAMWriteEnable,
+	output	reg	[7:0]	ThemRAMReadAdress,
+	output	reg	[7:0]	ThemRAMWriteAddress,	// Our guesses
+	output	reg			ThemRAMWriteEnable,
+	
+	input		[1:0]	UsReturnReadRAMValue,	// EXPAND if needed
+	input		[1:0]	ThemReturnReadRAMValue,
+	output	reg	[1:0]	UsWriteValue,			// EXPAND if needed
+	output	reg	[1:0]	ThemWriteValue,
 	
 	output	reg	[1:0]	PlacementDone,
 	
-	output	reg	[3:0]	Orientation,	//icon TBD
-	output	reg [7:0]	ShipInfo,		//icon TBD
+	output	reg	[3:0]	Orientation,	//icon DONE
+	output	reg [7:0]	ShipInfo,		//icon DONE
+	
+	
+	input				RX_DataReady,	// Receiving data flag from XB interface
+	input		[7:0]	RX_DataIn,		// Data coming in
+	output	reg			TX_DataSend,	// Sending data flag to XB interface
+	output	reg	[7:0]	TX_DataOut,		// Data going out
     
 	
 
@@ -128,6 +144,9 @@ module nexys4_pico_if (
 	wire 	[7:0] valid_request;
 	assign valid_request = ((OutOfBounds != `OUT_OF_BOUNDS) && (RamOutput == 0)) ? `VALID_FLAG : `INVALID_FLAG;
 	
+	reg			SelectRAM = 0;
+	wire [1:0]	ReturnReadRAMValue;
+	assign ReturnReadRAMValue = (SelectRAM == `US_RAM) ? UsReturnReadRAMValue : ThemReturnReadRAMValue;
 	
 
 	reg    clearRamOutput = 0;
@@ -141,8 +160,23 @@ module nexys4_pico_if (
 	       clearRamOutput <= 0;
 	   end
 	   else begin
-		  RamOutput <= RamOutput + ReturnReadRAMValue;
+		  RamOutput <= RamOutput + UsReturnReadRAMValue;
 	   end
+	end
+	
+	reg TX_counter = 0;
+	
+	//Logic for setting TX_DataSend flag to enable for 2 clock cycles after getting a Data TX request
+	always @ (posedge clk) begin
+		if (port_id == `PA_DATA_TX) begin 
+			TX_DataSend <= 1'b1;
+			TX_counter <= 2;
+		end else if (TX_counter > 0) begin
+			TX_counter <= TX_counter - 1;
+		end else begin
+			TX_DataSend <= 1'b0;
+			TX_counter <= 0;
+		end
 	end
 
   /////////////////////////////////////////////////////////////////////////////////////////
@@ -168,15 +202,19 @@ module nexys4_pico_if (
         8'h07 : in_port <= {4'b0000,decimal_point_lower};  
         8'h08 : in_port <= OutOfBounds;  
 		
-		// 0x09 Connection Established input
-        `PA_CONN_EST : in_port <= {ConnEstablished,7'b0000000};	//conn established being sent to MSB in picoblaze
+		// 0x09 Connection Established input and DATA_READY signal
+        `PA_CONN_EST : in_port <= {ConnEstablished,RX_DataReady,6'b0000000};	//conn established being sent to MSB in picoblaze
         
         // 0x0A and 0x0B are output address ports
         8'h0A : begin
-            in_port <= Cursor; //PA_CURSOR_CHECK  Read address to RAM
+            if (SelectRAM == `US_RAM)
+				in_port <= UsRAMReadAdress;
+			else
+				in_port <= ThemRAMReadAdress;
+			//in_port <= Cursor; //PA_CURSOR_CHECK  Read address to RAM
             //ReadRqCnt <= ReadRqCnt + 1;
         end
-        8'h0B : in_port <= RAMWriteAddress; //PA_RAM_W_ADDR  Write address to RAM
+        8'h0B : in_port <= (SelectRAM == `US_RAM) ? UsRAMWriteAddress : ThemRAMWriteAddress; //PA_RAM_W_ADDR  Write address to RAM
         
         // 0x0C Return value from RAM
         `PA_VALID_FLAG : begin
@@ -197,14 +235,22 @@ module nexys4_pico_if (
         
         // 0x12 through 0x18 are outputs
         8'h12 : in_port <= leds[15:8];
-        8'h13 : in_port <= {3'b000,dig7};
+        8'h13 : in_port <= {7'b0000000,SelectRAM};
         8'h14 : in_port <= {3'b000,dig6};
         8'h15 : in_port <= {3'b000,dig5};
         8'h16 : in_port <= {3'b000,dig4};
         8'h17 : in_port <= {4'b0000,decimal_point_upper};
-        8'h18 : in_port <= {6'b000000,WriteValue};	//PA_RAM_W_VAL	Value to write to ram (ship, hit, miss)
-        
-		//`PA_DATA_RX : in_port <= dataIn;	// Receive guess from other player over XB
+        8'h18 : begin 
+			if (SelectRAM == `US_RAM) begin
+				in_port <= {6'b000000,UsWriteValue};	//PA_RAM_W_VAL	Value to write to ram (ship, hit, miss)
+			end else begin
+				in_port <= {6'b000000,ThemWriteValue};
+			end
+        end
+		
+		`PA_DATA_RX : begin 
+			in_port <= RX_DataIn;	// Receive guess from other player over XB
+		end
         
         // 0x1A - 0x1D are outputs
         8'h1A : begin
@@ -225,10 +271,18 @@ module nexys4_pico_if (
         end 
         
         // 0x1E is an output
-        8'h1E : in_port <= 8'h00; //PA_DATA_TX
+        8'h1E : in_port <= TX_DataOut; //PA_DATA_TX
         
         // 0x1F return RAM request value
-        `PA_DATA_RAM : in_port <= {6'b000000,ReturnReadRAMValue}; //expand if needed
+        `PA_DATA_RAM : begin
+			if (SelectRAM == `US_RAM)
+				in_port <= {6'b000000,UsReturnReadRAMValue}; //expand if needed
+			else
+				in_port <= {6'b000000,ThemReturnReadRAMValue}; //expand if needed
+				
+			UsRAMWriteEnable <= 1'b0;
+			ThemRAMWriteEnable <= 1'b0;
+		end
 
         default : in_port <= 8'h00; 
 
@@ -280,14 +334,27 @@ module nexys4_pico_if (
             
             // 0x0A is a read RAM request for that address
             `PA_CURSOR_CHECK: begin 
-                RAMWriteEnable <= 1'b0;	// READ RAM
+                UsRAMWriteEnable <= 1'b0;	// READ RAM
+				ThemRAMWriteEnable <= 1'b0;
+				if (SelectRAM == `US_RAM) begin
+					UsRAMReadAdress <= out_port;
+				end else begin
+					ThemRAMReadAdress <= out_port;
+				end
+				//ThemRAMWriteEnable <= 1'b0;
 				Cursor <= out_port;		//PA_CURSOR_CHECK
 			end
 			
 			// 0x0B
             `PA_RAM_W_ADDR: begin
-				RAMWriteAddress <= out_port;	//PA_RAM_W_ADDR
-				RAMWriteEnable <= 1'b1;	// WRITE RAM
+				if (SelectRAM == `US_RAM) begin
+					UsRAMWriteAddress <= out_port;	//PA_RAM_W_ADDR
+					UsRAMWriteEnable <= 1'b1;
+				end else begin
+					ThemRAMWriteAddress <= out_port;
+					ThemRAMWriteEnable <= 1'b1;
+				end
+				//RAMWriteEnable <= 1'b1;	// WRITE RAM
 			end
 			
 			// 0x0C is an input
@@ -309,8 +376,8 @@ module nexys4_pico_if (
             // 0x12 is highbyte output for LEDs
             8'h12: leds[15:8] <= out_port;   //PA_LEDS1508  LEDs 15:8 (high byte of switches)
             
-            // 0x13 Digit 7 of Seven Segement display
-            8'h13: dig7 <= out_port[4:0];    //PA_DIG7  digit 7 port address
+            // 0x13 Select US or THEM RAM access
+            `PA_RAM_SELECT: SelectRAM <= out_port[0];    //PA_RAM_SELECT  digit 7 port address
             
             // 0x14 Digit 6 of Seven Segement display
             8'h14: dig6 <= out_port[4:0];    //PA_DIG6  digit 6 port address
@@ -325,30 +392,44 @@ module nexys4_pico_if (
             8'h17: decimal_point_upper <= out_port[3:0];    //PA_DP0704  decimal points 7:4 port address
             
             // 0x18 Write value to block RAM
-            8'h18: WriteValue <= out_port[1:0];	//PA_RAM_W_VAL  alternate port address
+            `PA_RAM_W_VAL: begin 
+				if (SelectRAM == `US_RAM) begin
+					UsWriteValue <= out_port[1:0];	//PA_RAM_W_VAL  alternate port address
+				end else begin
+					ThemWriteValue <= out_port[1:0];	//PA_RAM_W_VAL  alternate port address
+				end
+			end
             
-            // 0x19 Data request from other player
+            // 0x19 is an input, Data from XB
             8'h19: ;  //PA_DATA_RX
 			
 			// 0x1A - 0x1D are additional ship space checks
 			`PA_SHIP_CHECK_1: begin
-			    RAMWriteEnable <= 1'b0;	// READ RAM
+			    UsRAMWriteEnable <= 1'b0;	// READ RAM
 			    Cursor <= out_port;	//this might need to be changed
             end
 			`PA_SHIP_CHECK_2: begin
-				RAMWriteEnable <= 1'b0;	// READ RAM
+				UsRAMWriteEnable <= 1'b0;	// READ RAM
 			    Cursor <= out_port;
             end
 			`PA_SHIP_CHECK_3: begin
-			     RAMWriteEnable <= 1'b0;	// READ RAM
+			     UsRAMWriteEnable <= 1'b0;	// READ RAM
 			     Cursor <= out_port;
              end
 			`PA_SHIP_CHECK_4:begin
-			     RAMWriteEnable <= 1'b0;	// READ RAM
+			     UsRAMWriteEnable <= 1'b0;	// READ RAM
 			     Cursor <= out_port;
              end
             
-            // 0x1A through 0x1F are inputs
+            // 0x1A through 0x1D are inputs
+			
+			// 0x1E Transmit data to other FPGA board
+			`PA_DATA_TX: begin 
+				TX_DataOut <= out_port;
+				//TX_DataSend <= 1'b1;		//Need to hold this high for 2 cycles? moved to it's own flop
+			end
+			
+			// 0x1F is an input
         
             default: ;  
         endcase
