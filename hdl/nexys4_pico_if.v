@@ -90,7 +90,7 @@ module nexys4_pico_if (
 	input		[1:0]	ReturnReadRAMValue,	// EXPAND if needed
 	output	reg	[1:0]	WriteValue,			// EXPAND if needed
 	
-	output	reg			PlacementDone,
+	output	reg	[1:0]	PlacementDone,
 	
 	output	reg	[3:0]	Orientation,	//icon TBD
 	output	reg [7:0]	ShipInfo,		//icon TBD
@@ -123,29 +123,13 @@ module nexys4_pico_if (
 
     //reg [2:0]   ReadRqCnt = 0;
 	reg [7:0]	RamOutput = 0;		// This will be a combination of all potential RAM outputs
+	reg [7:0]   OutOfBounds = 0;
 
 	wire 	[7:0] valid_request;
 	assign valid_request = ((OutOfBounds != `OUT_OF_BOUNDS) && (RamOutput == 0)) ? `VALID_FLAG : `INVALID_FLAG;
 	
 	
-	
-	//reg [7:0]	CursorCheck2;
-	//reg [7:0]	CursorCheck3;
-	//reg [7:0]	CursorCheck4;
-	
-	reg [7:0] OutOfBounds = 0;
-	
 
-	
-	
-	/*always @ () begin
-		if (CursorCheck == `OUT_OF_BOUNDS)
-			valid_request <= INVALID_FLAG;
-		else if (RamOutput)
-			valid_request <= VALID_FLAG;
-		else
-			valid_request <= INVALID_FLAG;
-	end*/
 	reg    clearRamOutput = 0;
 
 	always @ (posedge clk) begin
@@ -201,7 +185,7 @@ module nexys4_pico_if (
         end
         
         // 0x0D - 0x0F are outputs
-        8'h0D : in_port <= {7'b0000000,PlacementDone}; //PA_PLACE_DONE  Finished placing ships
+        8'h0D : in_port <= {6'b000000,PlacementDone}; //PA_PLACE_DONE  Finished placing ships
         8'h0E : in_port <= {4'b0000,Orientation}; //PA_ORIEN	current orientation selection
         8'h0F : in_port <= ShipInfo; //PA_SHIP_INFO		Ship count remaining and current length
 
@@ -310,7 +294,7 @@ module nexys4_pico_if (
             8'h0C: ;	//PA_VALID_FLAG
 			
 			// 0x0D	Ship placement is complete
-            `PA_PLACE_DONE: PlacementDone <= out_port[0];
+            `PA_PLACE_DONE: PlacementDone <= out_port[1:0];
 			
 			// 0x0E Current selected orientation for ship placement
             `PA_ORIEN: Orientation <= out_port[3:0];
