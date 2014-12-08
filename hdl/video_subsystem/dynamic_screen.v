@@ -91,7 +91,7 @@ module dynamic_screen(
 		if (~vid_on) begin
 			screen_color <= RED; // debug, If you see red, PWL messed something up!
 		end 
-		else if ((pixel_y > 96) && (pixel_y < 416)) begin
+		else if ((pixel_y > 100) && (pixel_y < 419)) begin
 			// we are in tiles region
 			// calculate the memory indices and addresses
 			tile_rom_x    <= pixel_x[4:0];
@@ -100,12 +100,12 @@ module dynamic_screen(
 			
 			temp_y        <= (pixel_y - 10'd100);
 			us_ram_x      <= {5'b0, pixel_x[9:5]};
-			us_ram_y      <= {2'b0, temp_y[9:5]} * 4'd10;
-			us_ram_addr   <= us_ram_x + us_ram_y;
+			us_ram_y      <= {5'b0, temp_y[9:5]};
+			us_ram_addr   <= {us_ram_y,us_ram_x};
 			
-			them_ram_x    <= {5'b0, (pixel_x[9:5] - 5'd10)};
-			them_ram_y    <= {5'b0, temp_y[9:5]} * 4'd10;
-			them_ram_addr <= them_ram_x + them_ram_y;
+			them_ram_x    <= {5'b0, (pixel_x[9:5] - 5'd10)}
+			them_ram_y    <= {5'b0, temp_y[9:5]};
+			them_ram_addr <= {them_ram_y,them_ram_x};
 			
 			// get current cursor position
 			cursor_x      <= {6'b0, cursor[7:4]};
