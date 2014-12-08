@@ -937,8 +937,19 @@ next_mvmt_s3_skip_dec:
 ; Send out finished placing ships signal		
 next_mvmt_s4:
         ;JUMP    the_end             ; We have completed the track, shut off processing.
-		LOAD	s0,	TRUE
+		
+		FETCH	s0, SP_PLAYER_NUMBER
+		COMPARE	s0, SP_PLAYER_ONE
+		JUMP	Z, next_mvmt_s4_go_first
+		LOAD	s0, HIS_TURN		; player 2 goes second
+		JUMP	next_mvmt_s4_send
+		
+next_mvmt_s4_go_first:	
+		LOAD	s0, MY_TURN			; player 1 goes first
+		
+next_mvmt_s4_send:
 		OUTPUT	s0, PA_PLACE_DONE
+		
 		LOAD	s0, TRUE
 		STORE	s0, SP_PLACE_DONE
 		
