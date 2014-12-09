@@ -306,7 +306,7 @@ xb1
     assign kcpsm6_reset = ~sysreset;    // kcpsm expects an active-high reset, so we invert our active-low reset signal
 
 
-    pick_ships program_rom 
+    pick_ships_P1 program_rom 
     (    		//Named to match the PSM file
         .enable 		(bram_enable),
         .address 		(address),
