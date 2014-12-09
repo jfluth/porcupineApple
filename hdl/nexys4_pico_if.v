@@ -161,17 +161,29 @@ module nexys4_pico_if (
 	 end
 	 
 	 
-	 always @ (posedge clk) begin
+	/*always @ (posedge clk) begin
         if (RX_DataReady == 1'b1) begin
             RX_DataReadyHold <= 1'b1;
             RX_DataReadyHoldCount <= 9;
+			leds[12] <= 1'b1;
          end else if (RX_DataReadyHoldCount > 0) begin
             RX_DataReadyHoldCount <= RX_DataReadyHoldCount - 1;
+			leds[11] <= 1'b1;
          end else begin
             RX_DataReadyHold <= 1'b0;
             RX_DataReadyHoldCount <= 0;
+			leds[10] <= 1'b1;
          end
-      end
+    end*/
+    
+    always @ (posedge clk) begin
+        if (RX_DataReady == 1'b1) begin
+            RX_DataReadyHold <= 1'b1;
+         end else begin
+            RX_DataReadyHold <= RX_DataReadyHold;
+         end
+    end
+	
 	
 
 	reg    clearRamOutput = 0;
@@ -190,13 +202,13 @@ module nexys4_pico_if (
 	   dig7 <= 0;
 	end
 	
-	reg TX_counter = 0;
+	reg [4:0] TX_counter = 0;
 	
 	//Logic for setting TX_DataSend flag to enable for 2 clock cycles after getting a Data TX request
 	always @ (posedge clk) begin
 		if (port_id == `PA_DATA_TX) begin 
 			TX_DataSend <= 1'b1;
-			TX_counter <= 2;
+			TX_counter <= 20;
 		end else if (TX_counter > 0) begin
 			TX_counter <= TX_counter - 1;
 		end else begin
@@ -305,6 +317,8 @@ module nexys4_pico_if (
 				in_port <= {6'b000000,UsReturnReadRAMValue}; //expand if needed
 			else
 				in_port <= {6'b000000,ThemReturnReadRAMValue}; //expand if needed
+				
+			RX_DataReadyHold <= 1'b0;
 		end
 
         default : in_port <= 8'h00; 
@@ -397,7 +411,7 @@ module nexys4_pico_if (
             8'h11: ;	//PA_SLSWTCH1508
             
             // 0x12 is highbyte output for LEDs
-            8'h12: leds[15:8] <= out_port;   //PA_LEDS1508  LEDs 15:8 (high byte of switches)
+            8'h12: ;//leds[15:8] <= out_port;   //PA_LEDS1508  LEDs 15:8 (high byte of switches)
             
             // 0x13 Select US or THEM RAM access
             `PA_RAM_SELECT: SelectRAM <= out_port[0];    //PA_RAM_SELECT  digit 7 port address
