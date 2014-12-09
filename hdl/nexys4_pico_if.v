@@ -149,9 +149,9 @@ module nexys4_pico_if (
 	
 	reg [7:0] RX_DataLatch; 
 	reg    RX_DataReadyHold;
-	reg [3:0] RX_DataReadyHoldCount = 0;
+	//reg [3:0] RX_DataReadyHoldCount = 0;
 	
-	
+	// Latch the RX_DataIn, only update it if we have new data coming in.
 	always @ (posedge clk) begin
 	   if (RX_DataReady == 1'b1) begin
 	       RX_DataLatch <= RX_DataIn;
@@ -160,28 +160,15 @@ module nexys4_pico_if (
 	    end
 	 end
 	 
-	 
-	/*always @ (posedge clk) begin
+	// Latch in the RX_DataReady signal, and don't let go until PicoBlaze issues the command to read the data.
+	always @ (posedge clk) begin
         if (RX_DataReady == 1'b1) begin
             RX_DataReadyHold <= 1'b1;
-            RX_DataReadyHoldCount <= 9;
-			leds[12] <= 1'b1;
-         end else if (RX_DataReadyHoldCount > 0) begin
-            RX_DataReadyHoldCount <= RX_DataReadyHoldCount - 1;
-			leds[11] <= 1'b1;
-         end else begin
+        end else if (port_id == `PA_DATA_RX) begin
             RX_DataReadyHold <= 1'b0;
-            RX_DataReadyHoldCount <= 0;
-			leds[10] <= 1'b1;
-         end
-    end*/
-    
-    always @ (posedge clk) begin
-        if (RX_DataReady == 1'b1) begin
-            RX_DataReadyHold <= 1'b1;
-         end else begin
+        end else begin
             RX_DataReadyHold <= RX_DataReadyHold;
-         end
+        end
     end
 	
 	
@@ -202,18 +189,16 @@ module nexys4_pico_if (
 	   dig7 <= 0;
 	end
 	
-	reg [4:0] TX_counter = 0;
+	//reg TX_counter = 0;
 	
 	//Logic for setting TX_DataSend flag to enable for 2 clock cycles after getting a Data TX request
 	always @ (posedge clk) begin
 		if (port_id == `PA_DATA_TX) begin 
 			TX_DataSend <= 1'b1;
-			TX_counter <= 20;
-		end else if (TX_counter > 0) begin
-			TX_counter <= TX_counter - 1;
-		end else begin
+		end else if (RX_DataReady == 1'b1) begin
 			TX_DataSend <= 1'b0;
-			TX_counter <= 0;
+		end else begin
+			TX_DataSend <= TX_DataSend;
 		end
 	end
 
@@ -317,8 +302,6 @@ module nexys4_pico_if (
 				in_port <= {6'b000000,UsReturnReadRAMValue}; //expand if needed
 			else
 				in_port <= {6'b000000,ThemReturnReadRAMValue}; //expand if needed
-				
-			RX_DataReadyHold <= 1'b0;
 		end
 
         default : in_port <= 8'h00; 
