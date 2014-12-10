@@ -184,6 +184,30 @@ module nexys4_pico_if (
 	wire [1:0]	ReturnReadRAMValue;
 	assign ReturnReadRAMValue = (SelectRAM == `US_RAM) ? UsReturnReadRAMValue : ThemReturnReadRAMValue;
 	
+    // Handle RAM Write Enable flags, make sure we don't hold them high for more than a clock cycle
+    reg         RAMwriteEnable = 0;
+    
+    always @ (posedge clk) begin
+       if (RAMwriteEnable == 1'b1) begin
+           if (SelectRAM == `US_RAM) begin
+               UsRAMWriteEnable <= 1'b1;
+           end
+           else begin
+               ThemRAMWriteEnable <= 1'b1;
+           end
+           RAMwriteEnable <= 1'b0;
+       end
+       else if (port_id == `PA_RAM_W_ADDR) begin
+            RAMwriteEnable <= 1'b1;
+            UsRAMWriteEnable <= 1'b0;
+            ThemRAMWriteEnable <= 1'b0;
+       end
+       else begin
+            UsRAMWriteEnable <= 1'b0;
+            ThemRAMWriteEnable <= 1'b0;
+       end
+    end
+	
 	
 	//Latches for the transmission incoming flags and values so PicoBlaze does not miss them
 	reg [7:0]	RX_DataLatch; 
@@ -335,8 +359,8 @@ module nexys4_pico_if (
             
             // 0x0A is a read RAM request for that address
             `PA_CURSOR_CHECK: begin         // This is a READ RAM command, disable WriteEnable flags for safety
-                UsRAMWriteEnable <= 1'b0;	// READ RAM
-				ThemRAMWriteEnable <= 1'b0;
+                //UsRAMWriteEnable <= 1'b0;	// READ RAM
+				//ThemRAMWriteEnable <= 1'b0;
 				if (SelectRAM == `US_RAM) begin
 					UsRAMReadAdress <= out_port;
 				end 
@@ -350,11 +374,11 @@ module nexys4_pico_if (
             `PA_RAM_W_ADDR: begin
 				if (SelectRAM == `US_RAM) begin
 					UsRAMWriteAddress <= out_port;	
-					UsRAMWriteEnable <= 1'b1;
+					//UsRAMWriteEnable <= 1'b1;
 				end 
 				else begin
 					ThemRAMWriteAddress <= out_port;
-					ThemRAMWriteEnable <= 1'b1;
+					//ThemRAMWriteEnable <= 1'b1;
 				end
 			end
 			
@@ -378,7 +402,11 @@ module nexys4_pico_if (
             `PA_LEDS1508: leds[15:8] <= out_port;   //PA_LEDS1508  LEDs 15:8 (high byte of switches)
             
             // 0x13 Select US or THEM RAM access
-            `PA_RAM_SELECT: SelectRAM <= out_port[0];    //PA_RAM_SELECT  digit 7 port address
+            `PA_RAM_SELECT: begin
+                //UsRAMWriteEnable <= 1'b0;
+                //ThemRAMWriteEnable <= 1'b0; 
+                SelectRAM <= out_port[0];    //PA_RAM_SELECT  digit 7 port address
+            end
             
             // 0x14 Digit 6 of Seven Segement display
             `PA_DIG6: dig6 <= out_port[4:0];    //PA_DIG6  digit 6 port address
@@ -394,6 +422,8 @@ module nexys4_pico_if (
             
             // 0x18 Write value to block RAM
             `PA_RAM_W_VAL: begin 
+                //UsRAMWriteEnable <= 1'b0;
+                //ThemRAMWriteEnable <= 1'b0;
 				if (SelectRAM == `US_RAM) begin
 					UsWriteValue <= out_port[1:0];	//PA_RAM_W_VAL  
 				end 
@@ -407,19 +437,19 @@ module nexys4_pico_if (
 			
 			// 0x1A - 0x1D are additional ship space checks, only used in place ships mode, only accesses US_RAM
 			`PA_SHIP_CHECK_1: begin
-			    UsRAMWriteEnable <= 1'b0;	// READ RAM
+			    //UsRAMWriteEnable <= 1'b0;	// READ RAM
 			    UsRAMReadAdress <= out_port;	
             end
 			`PA_SHIP_CHECK_2: begin
-				UsRAMWriteEnable <= 1'b0;	// READ RAM
+				//UsRAMWriteEnable <= 1'b0;	// READ RAM
 			    UsRAMReadAdress <= out_port;
             end
 			`PA_SHIP_CHECK_3: begin
-			     UsRAMWriteEnable <= 1'b0;	// READ RAM
+			     //UsRAMWriteEnable <= 1'b0;	// READ RAM
 			     UsRAMReadAdress <= out_port;
              end
 			`PA_SHIP_CHECK_4:begin
-			     UsRAMWriteEnable <= 1'b0;	// READ RAM
+			     //UsRAMWriteEnable <= 1'b0;	// READ RAM
 			     UsRAMReadAdress <= out_port;
              end
             
