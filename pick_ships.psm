@@ -15,6 +15,7 @@
 ; 06-Dec-14    AN    Updated constants and RAM writes to have value and address.
 ; 08-Dec-14    AN	 Fixed bug with Orientation defaulting to NORTH if no buttons pressed during 
 ; 08-Dec-14    AN    More bug fixes, previously could not place ships touching the border. Added Jordan's updated code as well
+; 10-Dec-14    AN    Fixed a bug where the wrong RAM was being written to for your guesses. Added writing other player's guesses as well
 ;
 ; Description:
 ; ============
@@ -132,6 +133,9 @@ CONSTANT	MAX_PLACE, 0A	; Tile placement cannot go past 09
 
 CONSTANT	MY_TURN,	03
 CONSTANT	HIS_TURN,	01
+
+CONSTANT	US_RAM,			00	; values for PA_RAM_SELECT
+CONSTANT	THEM_RAM,		01
 
 ;CONSTANT	RAM_EMPTY,	00
 ;CONSTANT	RAM_MISS,	01
@@ -1234,7 +1238,7 @@ RIGHT:			LOAD 	s0, 	Cursor
 				RETURN
 
 SEND_GUESS:		LOAD 	s0, 	Cursor
-				LOAD 	s3, 	01
+				LOAD 	s3, 	THEM_RAM
 				OUTPUT  s3, 	PA_RAM_SELECT
 				OUTPUT 	s0, 	PA_CURSOR_CHECK		; GET THE CURRENT CURSOR POSITION
 				INPUT 	s1, 	PA_DATA_RAM	 		; GET THE DATA IN THAT RAM LOCATION
@@ -1260,7 +1264,7 @@ RECEIVE_GUESS:	INPUT 	s0, 	PA_CONN_EST
 
 				INPUT 	s0, 	PA_DATA_RX 	 		; GET THE GUESS FROM THE OTHER PLAYER
 				LOAD 	s1, 	s0
-				LOAD 	s3, 	00
+				LOAD 	s3, 	US_RAM
 				OUTPUT  s3, 	PA_RAM_SELECT
 				OUTPUT 	s1, 	PA_CURSOR_CHECK 	; SEND THE XY TO THE RAM
 				INPUT 	s0, 	PA_DATA_RAM	 		; READ DATA AT THAT LOCATION
@@ -1276,14 +1280,26 @@ MARK_HIT:		FETCH 	s0, 	SP_HIT_COUNT
 				STORE 	s0, 	SP_HIT_COUNT
 				COMPARE s0, 	MAX_HITS
 				JUMP 	Z, 		MARK_LOSE
+        ;Mark US_RAM indicating other player's progress
+        LOAD  s3, US_RAM
+        OUTPUT  s3, PA_RAM_SELECT
+        LOAD  s3, RAM_HIT           
+        OUTPUT  s3, PA_RAM_W_VAL
+        OUTPUT  s1, PA_RAM_W_ADDR   ; s1 still contains XY of location
 				LOAD 	s0, 	RAM_HIT 
 				JUMP 	SEND_MARK
 
-MARK_MISS:		LOAD 	s0, 	RAM_MISS 
+MARK_MISS:		LOAD  s3, US_RAM  ; Mark US_RAM indicating other player's progress
+        OUTPUT  s3, PA_RAM_SELECT
+        LOAD  s3, RAM_MISS           
+        OUTPUT  s3, PA_RAM_W_VAL
+        OUTPUT  s1, PA_RAM_W_ADDR   ; s1 still contains XY of location
+        LOAD 	s0, 	RAM_MISS 
 				JUMP 	SEND_MARK
 
 MARK_LOSE: 		LOAD 	s0, 	LOSE_CODE
 				OUTPUT 	s0, 	PA_DATA_TX
+        LOAD  s3, US_RAM
 				JUMP 	GAME_OVER
 
 SEND_MARK: 		OUTPUT 	s0, 	PA_DATA_TX
@@ -1297,13 +1313,14 @@ RCVE_RESULT: 	INPUT 	s0, 	PA_CONN_EST
 				AND 	s0, 	DATA_READY_MASK
 				COMPARE s0, 	DATA_READY_MASK
 				JUMP 	NZ, 	RCVE_RESULT
+        
+				LOAD 	s3, 	THEM_RAM        ;;;; Changed from 00, this was pointing to US_RAM. Also moved up for GAME_OVER -AN
 
 				INPUT 	s0, 	PA_DATA_RX 			; READ THE RESPONSE
 				COMPARE s0, 	LOSE_CODE 			; CHECK IF END OF GAME
 				JUMP 	Z, 		GAME_OVER 			; INFINITE LOOP IF FINISHED
 
 				FETCH 	s1, 	SP_GUESS 			; GET THE RAM ADDRESS
-				LOAD 	s3, 	00
 				OUTPUT  s3, 	PA_RAM_SELECT
 				OUTPUT 	s0, 	PA_RAM_W_VAL 		; VALUE OUT TO RAM
 				OUTPUT 	s1, 	PA_RAM_W_ADDR 		; RAM ADDRESS
@@ -1342,6 +1359,7 @@ ACKED: 			LOAD 	s0, 	SP_READ_BTNS 		; UPDATE THE GAME STATE
 ERROR:			RETURN
 
 GAME_OVER: 		FETCH 	s1, 	SP_GUESS 			; GET THE RAM ADDRESS
+        OUTPUT  s3,   PA_RAM_SELECT   ; s3 previously loaded with US_RAM or THEM_RAM before calling GAME_OVER
 				LOAD 	s0, 	RAM_HIT
 				OUTPUT 	s0, 	PA_RAM_W_VAL 		; VALUE OUT TO RAM
 				OUTPUT 	s1, 	PA_RAM_W_ADDR 		; RAM ADDRESS
