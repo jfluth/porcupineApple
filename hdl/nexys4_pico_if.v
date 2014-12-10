@@ -144,10 +144,14 @@ module nexys4_pico_if (
 	reg  [7:0]	RamOutput = 0;		// This will be a combination of all potential RAM outputs
 	wire [7:0]	valid_request;
 	
+	//Set whether valid flag should be set or not based on existing RAM output and OutOfBounds check
 	assign valid_request = ((OutOfBounds != `OUT_OF_BOUNDS) && (RamOutput == 0)) ? `VALID_FLAG : `INVALID_FLAG;
 	
+	
 	reg    clearRamOutput = 0;
-
+	
+	// This is for returning the values from RAM on checking all potential positions the ship will be taking up
+	// If any one spot is not empty (00) then RamOutput will be non-zero and cause valid_request to be invalid.
 	always @ (posedge clk) begin
 	   if (port_id == `PA_VALID_FLAG) begin
 	       clearRamOutput <= 1;
@@ -166,9 +170,10 @@ module nexys4_pico_if (
 	wire [1:0]	ReturnReadRAMValue;
 	assign ReturnReadRAMValue = (SelectRAM == `US_RAM) ? UsReturnReadRAMValue : ThemReturnReadRAMValue;
 	
-	reg [7:0] RX_DataLatch; 
-	reg    RX_DataReadyHold;
-	//reg [3:0] RX_DataReadyHoldCount = 0;
+	
+	//Latches for the transmission incoming flags and values.
+	reg [7:0]	RX_DataLatch; 
+	reg			RX_DataReadyHold;
 	
 	// Latch the RX_DataIn, only update it if we have new data coming in.
 	always @ (posedge clk) begin
@@ -190,11 +195,6 @@ module nexys4_pico_if (
         end
     end
 	
-	
-
-
-	
-	//reg TX_counter = 0;
 	
 	//Logic for setting TX_DataSend flag to enable for 2 clock cycles after getting a Data TX request
 	always @ (posedge clk) begin
