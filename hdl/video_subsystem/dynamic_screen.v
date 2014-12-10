@@ -145,7 +145,7 @@ module dynamic_screen(
 				// paint the cursor if needed
 				// if we are placing ships we don't need cursor on this side
 				// if it is not our turn, we don't need cursor on this side
-				if (({cursor_x,cursor_y} == {them_ram_x,them_ram_y}) && placement_done) begin
+				if (({cursor_x,cursor_y} == {them_ram_x,them_ram_y}) && (placement_done[1:0] == 2'b11)) begin
 					screen_color <= YELLOW;
 				// paint the ship being actively placed
 				end 
