@@ -11,7 +11,7 @@
 ; 01-Dec-14    AN    Added portions of collision detection algorithm, changed some portions of addresses to interface with RAM
 ; 02-Dec-14    AN    Finished State 2, updated incorrect labelling for transitioning from state 1 into state 2 (was called state 3)
 ; 02-Dec-14    AN    Finished State 3 and 4, code is assembling, must be tested
-
+; 02-Dec-14    JF    Added code for turn functionality.
 ; 06-Dec-14    AN    Updated constants and RAM writes to have value and address.
 ; 08-Dec-14    AN	 Fixed bug with Orientation defaulting to NORTH if no buttons pressed during 
 ; 08-Dec-14    AN    More bug fixes, previously could not place ships touching the border. Added Jordan's updated code as well
@@ -137,9 +137,7 @@ CONSTANT	HIS_TURN,	01
 CONSTANT	US_RAM,			00	; values for PA_RAM_SELECT
 CONSTANT	THEM_RAM,		01
 
-;CONSTANT	RAM_EMPTY,	00
-;CONSTANT	RAM_MISS,	01
-;CONSTANT	RAM_HIT,	02
+
 CONSTANT	RAM_SHIP_H,	03
 ;Extras, may be used in stretch goal for cooler looking ships
 CONSTANT	RAM_SHIP_V,	04
@@ -161,9 +159,9 @@ CONSTANT	MSK_CONN_EST, 80
 CONSTANT	MSK_SHIPCNT,	F0
 CONSTANT	MSK_SHIPLNG,	0F
 
-;CONSTANT	MSK
-
 	
+
+
 ;  bit masks for pushbuttons and switches for seven segment emulator
 CONSTANT	MSK_ALLBTNS,	1F		; Buttons are in bits[5:0]
 CONSTANT	MSK_PBTNS,		0F		; Mask for 4 buttons to display on LED
@@ -221,15 +219,6 @@ CONSTANT  STATE1,   01        ; Off black line, back up
 CONSTANT  STATE2,   02        ; Turn
 CONSTANT  STATE3,   03        ; Go forward one space and check black line
 CONSTANT  STATE4,   04        ; Go forward one space to the end of the maze, then turn off.
-
-; =============================
-; === MotCtl commands       ===
-; =============================
-
-CONSTANT  MOTCTRL_FWD,  33
-CONSTANT  MOTCTRL_REV,  22
-CONSTANT  MOTCTRL_R1X,  30
-CONSTANT  MOTCTRL_L2X,  23
 
 ; =============================
 ; === Useful Data Constants ===
@@ -314,22 +303,7 @@ CONSTANT 	DATA_READY_MASK, 	40
 ; to Motor Control input register format [lmspd[2:0],lmdir,rmspd[2:0],rmdir]
 CONSTANT	SP_BTNBASE,	00			; table is based at 0x00
 									;								[b3,b2,b1,b0]=[lf,lr,rf,rr]
-CONSTANT	SP_LSRS,		00		; left motor off, right motor off 				[0000]
-CONSTANT	SP_LORR,		02		; left motor off, right motor reverse			[0001]
-CONSTANT	SP_LSRF,		03		; left motor off, right motor forward			[0010]
-CONSTANT	SP_LSRFR,		00		; left motor off, right motor fwd & rev = off	[0011]
-CONSTANT	SP_LRRS,		20		; left motor reverse, right motor off			[0100]
-CONSTANT	SP_LRRR,		22		; left motor reverse, right motor reverse		[0101]
-CONSTANT	SP_LRRF,		23		; left motor reverse, right motor forward		[0110]
-CONSTANT	SP_LRRFR,		20		; left motor rev, right motor fwd & rev = off	[0111]
-CONSTANT	SP_LFRS,		30		; left motor forward, right motor off 			[1000]
-CONSTANT	SP_LFRR,		32		; left motor forward, right motor reverse		[1001]
-CONSTANT	SP_LFRF,		33		; left motor forward, right motor forward		[1010]
-CONSTANT	SP_LFRFR,		30		; left motor fwd, right motor fwd & rev = off	[1011]
-CONSTANT	SP_LFRRS,		00		; left motor fwd & rev = off, right motor off	[1100]
-CONSTANT	SP_LFRRR,		02		; left motor fwd & rev = off, right motor rev	[1101]
-CONSTANT	SP_LFRRF,		03		; left motor fwd & rev = off, right motor fwd	[1110]
-CONSTANT	SP_LFRRFR,		00		; left  and right motor fwd & rev = off			[1111]
+
 
 
 ; Movement display lookup table.  Converts movement from BotInfo register to
@@ -361,10 +335,7 @@ CONSTANT	SP_MVMTF,		1C		; Fast right turn - display lower case R
 CONSTANT	SP_SEM,			20		; Semaphore between isr and main loop
 CONSTANT	SP_TEMP1,		21		; Temp storage.  Used by ISR
 CONSTANT	SP_TEMP2,		22		;
-;CONSTANT	SP_LMDIST,		23		; Storage for left and right motor distance counters
-;CONSTANT	SP_RMDIST,		24		;
-;CONSTANT	SP_OLDMVMT,		25		; Old movement value 
-;CONSTANT	SP_OLDHDG,		26		; Old heading value
+
 CONSTANT	SP_OLDDP,		27		; Old decimal points
 
 ; =========================
@@ -417,15 +388,11 @@ main:			CALL	init_btnluptbl				; initialize button to MotCtl lookup table
 				CALL	init_mvmttbl				; initialize movement to character code lookup table
 				LOAD	s1,		00					; clear the semaphore
 				STORE	s1,		SP_SEM				;
-				LOAD	s1,		00					; turn off decimal points 3-0.  Decimal point 0 (rightmost
-				;STORE	s1,		SP_OLDDP			; and save the value	
-				LOAD 	s1,		STATE0          	; Start in state 0
+				LOAD	s1,		00					; Load initial value
+
 				STORE	s1,		SP_STATE
-				; clear Out of Bounds
-				;LOAD	s1, 00
 				STORE	s1, SP_OOB
-				;LOAD	s0, FALSE
-				STORE	s0, SP_PLACE_DONE
+				STORE	s1, SP_PLACE_DONE
 				LOAD 	Cursor,	CURSOR_INIT         ; Initialize Cursor variable to center of the screen
 				LOAD	Orien,	EAST				; Initialize Orientation to East
 				LOAD	Ship_info,	55				; Initialize to 5 ships, current length 5
@@ -445,11 +412,9 @@ main:			CALL	init_btnluptbl				; initialize button to MotCtl lookup table
 main_L0:		FETCH	s6,		SP_SEM				;		while (SP_SEMA == 0)  {}   // loop until isr updates rojobot registers
 				COMPARE	s6,		00				;
 				JUMP	Z,		main_L0				;
-				;CALL	next_loc					;			Dig[3:2] = nex LocX; Dig[1:0] = next LocY
-				CALL	next_mvmt					;			Dig[4] = next movement
-				;CALL	next_hdg					;			Dig[7:4] = next heading
+				CALL	next_mvmt					;			Determine next state in ship placement
 													;		}
-				CALL TURN
+				CALL TURN               ; Determine next state in game turns
 													
 				;DEBUG CODE: place Cursor.X into Dig1, and Cursor.Y into Dig0
 				CALL DISP_X_Y
@@ -606,12 +571,15 @@ mvmt2cc:		LOAD	s2,		SP_MVMTBASE			; s2 gets base of movment conversion table
 ; === next_mvmt() - Ship placement determination if we stay in or      ===
 ; === transition out of the current state, and what actions to perform ===
 ; === current state                                                    ===
+
+
 ;
 ; This function looks at what current state the ship placement is in.
 ; It determines if a state-change condition has been met and updates the
 ; state appropriately. Any setup actions required upon entering a new 
 ; state are also handled here.
 ; This function does not send out status updates on position or location,
+
 ; that is handled in next_step based upon what state is set here. However,
 ; Placement_done is set and sent out when ship_placement is complete.
 ; RAM read requests are also sent out here, with the read values to be
@@ -882,6 +850,7 @@ next_mvmt_s4:
     FETCH s0, SP_PLACE_DONE ; First check if we've already come here before and are no longer
     COMPARE s0, TRUE        ; placing ships
     RETURN  Z
+
 		
 		FETCH	s0, SP_PLAYER_NUMBER
 		COMPARE	s0, SP_PLAYER_ONE
@@ -1134,7 +1103,9 @@ DISP_X_Y:		LOAD		s0,		Cursor				; Dig[3:2] gets X-coordinate
 PLAYER_ASSIGN: 	LOAD 	s0, 	PA_SLSWTCH
  				OUTPUT 	s0, 	PA_LEDS1508
  				COMPARE s0, 	MSK_SW0
+
 				JUMP 	SET_PLAYER_ONE    ;JUMP SET_PLAYER_TWO
+
 				
 				
 SET_PLAYER_ONE: LOAD  s0, 	SP_PLAYER_ONE
@@ -1593,6 +1564,14 @@ isr:			STORE		s6,		SP_TEMP1			; 	save s6, s5
 				INPUT		But_input, PA_CONN_EST
 				CALL		DEB_rdbtns
 				OR			But_input, s0		  
+
+
+
+
+
+
+
+
 				ADD		s6,		01					;		increment semaphore
 				STORE		s6,		SP_SEM				;	}  // update system register values
 isr_L0:			FETCH		s6,		SP_OLDDP			;	toggle  decimal point 0 (rightmost)
