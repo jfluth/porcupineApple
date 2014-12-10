@@ -18,8 +18,18 @@
 ///////////////////////////////////////////////////////////////////////////
 //
 
-//`define PA_PBTNS 2'b00
+// Memory access port addresses
+// They are scattered around due to requirements realized later on, but...
+// PA_RAM_SELECT	- Switches between reading US and THEM RAM (our ship locations
+//						and our guesses at their ships, respectively)
+// PA_CURSOR_CHECK	- Read RAM address (and current cursor location for Display)
+// PA_DATA_RAM		- Requested Read data from RAM
+// PA_RAM_W_ADDR	- Write RAM address
+// PA_RAM_W_VAL		- Write RAM value
 
+
+// These defines are taken from the CONSTANTS declared in the PicoBlaze Software
+// They are the Port Addresses copied from assembly.
 `define	PA_PBTNS	8'h00		// (i) pushbuttons inputs
 `define	PA_SLSWTCH	8'h01		// (i) slide switches
 `define	PA_LEDS		8'h02		// (o) LEDs
@@ -28,96 +38,88 @@
 `define	PA_DIG1		8'h05		// (o) digit 1 port address
 `define	PA_DIG0		8'h06		// (o) digit 0 port address
 `define	PA_DP		8'h07		// (o) decimal points 3:0 port address
-`define	PA_OOB		8'h08		// (o) Out of bounds port address
 
+// Utilized ports specific for Battleship
+`define	PA_OOB			8'h08	// (o) Out of bounds indication
+`define	PA_CONN_EST		8'h09	// (i) [Connection established] [RX Data Ready] and XXXXXX
+`define	PA_CURSOR_CHECK	8'h0A	// (o) Current Cursor location and Read address request to block RAM
+`define	PA_RAM_W_ADDR	8'h0B	// (o) Write address to block RAM location
+`define	PA_VALID_FLAG	8'h0C	// (i) Current cursor position would be a valid selection
+`define	PA_PLACE_DONE	8'h0D	// (o) Ship placement completed signal
+`define	PA_ORIEN		8'h0E	// (o) Orientation output
+`define	PA_SHIP_INFO	8'h0F	// (o) Ship Info output
 
-// Interface registers
-`define	PA_CONN_EST		8'h09		// (i) Connect has been established
-`define	PA_CURSOR_CHECK	8'h0A		// (o) Read/Write address request to block RAM
-`define	PA_RAM_W_ADDR	8'h0B		// (o) Write to block RAM location
-`define	PA_VALID_FLAG	8'h0C		// (i) Requested data from RAM returned back, position is valid or not
-`define	PA_PLACE_DONE	8'h0D		// (o) Ship placement completed signal
-`define	PA_ORIEN		8'h0E		// (o) Orientation output
-`define	PA_SHIP_INFO	8'h0F		// (o) Ship Info output
+// Extended I/O interface port addresses for the Nexys4.  
+`define	PA_PBTNS_ALT	8'h10	// (i) pushbutton inputs alternate port address
+`define	PA_SLSWTCH1508	8'h11	// (i) slide switches 15:8 (high byte of switches
+`define	PA_LEDS1508		8'h12	// (o) LEDs 15:8 (high byte of switches)
+`define	PA_RAM_SELECT	8'h13	// (o) Selects between US and THEM RAM
+`define	PA_DIG6			8'h14	// (o) digit 6 port address
+`define	PA_DIG5			8'h15	// (o) digit 5 port address
+`define	PA_DIG4			8'h16	// (o) digit 4 port address
+`define	PA_DP0704		8'h17	// (o) decimal points 7:4 port address
 
-
-
-
-// Extended I/O interface port addresses for the Nexys4.  Your Nexys4_Bot interface module
-// should include these additional ports even though they are not used in this program
-`define	PA_PBTNS_ALT	8'h10		// (i) pushbutton inputs alternate port address
-`define	PA_SLSWTCH1508	8'h11		// (i) slide switches 15:8 (high byte of switches
-`define	PA_LEDS1508		8'h12		// (o) LEDs 15:8 (high byte of switches)
-`define	PA_RAM_SELECT	8'h13		// (o) digit 7 port address
-`define	PA_DIG6			8'h14		// (o) digit 6 port address
-`define	PA_DIG5			8'h15		// (o) digit 5 port address
-`define	PA_DIG4			8'h16		// (o) digit 4 port address
-`define	PA_DP0704		8'h17		// (o) decimal points 7:4 port address
-`define	PA_RAM_W_VAL	8'h18		// (o) Write to block RAM value
-
-// Extended Rojobot interface registers.  These are alternate Port addresses
-`define PA_DATA_RX		8'h19	// (i) Data to read in from the RAM
+// More port address specifically used for Battleship
+`define	PA_RAM_W_VAL	8'h18	// (o) Write value to block RAM
+`define PA_DATA_RX		8'h19	// (i) Data read in from the XBee
 `define	PA_SHIP_CHECK_0	8'h0A	// (o) Request to RAM to verify position is valid or not
 `define	PA_SHIP_CHECK_1	8'h1A	// (o) Request to RAM to verify position is valid or not
-`define	PA_SHIP_CHECK_2	8'h1B	// (o))Request to RAM to verify position is valid or not
+`define	PA_SHIP_CHECK_2	8'h1B	// (o) Request to RAM to verify position is valid or not
 `define	PA_SHIP_CHECK_3	8'h1C	// (o) Request to RAM to verify position is valid or not
 `define	PA_SHIP_CHECK_4	8'h1D	// (o) Request to RAM to verify position is valid or not
 `define PA_DATA_TX		8'h1E	// (o) Data to transmit
-`define PA_DATA_RAM		8'h1F	// (i) Address of data in the RAM
+`define PA_DATA_RAM		8'h1F	// (i) Requested Read data from RAM
 
-`define	OUT_OF_BOUNDS	8'hFF
-`define	VALID_FLAG		8'h01
-`define	INVALID_FLAG	8'h00
+`define	OUT_OF_BOUNDS	8'hFF	// Value that indicates current selected position is not 
+								// within bounds of game board; overrides RAM value validation
+`define	VALID_FLAG		8'h01	// Set PA_VALID_FLAG with this when current location is valid
+`define	INVALID_FLAG	8'h00	// Set PA_VALID_FLAG with this when current location is invalid
 
-`define	US_RAM			1'b0
+`define	US_RAM			1'b0	// values for PA_RAM_SELECT
 `define	THEM_RAM		1'b1
 
 module nexys4_pico_if (
     input              clk,
 	
+	// Normal PicoBlaze ports
 	input      [7:0]   port_id,    //output from PicoBlaze, indicating address it wants to read/write from
-                       out_port,   //output from the PicoBlaze, input to this interface
-                       
-                       
+                       out_port,   //output from the PicoBlaze, input to this interface       
     input              write_strobe,    //output from the PicoBlaze, indicating it is writing on it's out_port  
 	output reg [7:0]   in_port,   //input to the PicoBlaze, output from this interface   
-	               
-				   
-    input   ConnEstablished,   //input to picoblaze, connection established signal
 	
-	output	reg	[7:0]	Cursor,
+	input              interrupt_ack,   //ack from PicoBlaze
+    input              int_request,     //request from BotSim to interrupt PicoBlaze
+    output reg         interrupt,       //send interrupt to PicoBlaze
+	               		   
+    input   ConnEstablished,   //connection established signal. Clobbered from design requirements later on
+
+	output	reg	[7:0]	Cursor,		// Output for the display modules
 	
+	// RAM read/write values, MUXed inside this interface
 	output	reg	[7:0]	UsRAMReadAdress,
 	output	reg	[7:0]	UsRAMWriteAddress,		// Our ships
 	output	reg			UsRAMWriteEnable,
+	output	reg	[1:0]	UsWriteValue,
+	input		[1:0]	UsReturnReadRAMValue,
+	
 	output	reg	[7:0]	ThemRAMReadAdress,
 	output	reg	[7:0]	ThemRAMWriteAddress,	// Our guesses
 	output	reg			ThemRAMWriteEnable,
-	
-	input		[1:0]	UsReturnReadRAMValue,	// EXPAND if needed
-	input		[1:0]	ThemReturnReadRAMValue,
-	output	reg	[1:0]	UsWriteValue,			// EXPAND if needed
 	output	reg	[1:0]	ThemWriteValue,
+	input		[1:0]	ThemReturnReadRAMValue,
+
 	
-	output	reg	[1:0]	PlacementDone,
+	output	reg	[1:0]	PlacementDone,	//Contains logic to indicate placement done and whose turn it is
+	output	reg	[3:0]	Orientation,	//Information going into icon module to generate Ghost_Ship signal
+	output	reg [7:0]	ShipInfo,		//Information going into icon module to generate Ghost_Ship signal
 	
-	output	reg	[3:0]	Orientation,	//icon DONE
-	output	reg [7:0]	ShipInfo,		//icon DONE
-	
-	
+	// Transmission information
 	input				RX_DataReady,	// Receiving data flag from XB interface
 	input		[7:0]	RX_DataIn,		// Data coming in
 	output	reg			TX_DataSend,	// Sending data flag to XB interface
 	output	reg	[7:0]	TX_DataOut,		// Data going out
     
-	
-
-    input              interrupt_ack,   //ack from PicoBlaze
-    input              int_request,     //request from BotSim to interrupt PicoBlaze
-    output reg         interrupt,       //send interrupt to PicoBlaze
-	               
-    
-	
+	// Physical I/O
     input      [4:0]   db_btns,     //debounced button inputs, left-over from Proj2Demo
     input      [15:0]  db_sw,       //debounced switch inputs
     
@@ -136,12 +138,29 @@ module nexys4_pico_if (
                        decimal_point_upper
 );
     
-    //reg [2:0]   ReadRqCnt = 0;
-	reg [7:0]	RamOutput = 0;		// This will be a combination of all potential RAM outputs
-	reg [7:0]   OutOfBounds = 0;
 
-	wire 	[7:0] valid_request;
+	
+	reg  [7:0]	OutOfBounds = 0;
+	reg  [7:0]	RamOutput = 0;		// This will be a combination of all potential RAM outputs
+	wire [7:0]	valid_request;
+	
 	assign valid_request = ((OutOfBounds != `OUT_OF_BOUNDS) && (RamOutput == 0)) ? `VALID_FLAG : `INVALID_FLAG;
+	
+	reg    clearRamOutput = 0;
+
+	always @ (posedge clk) begin
+	   if (port_id == `PA_VALID_FLAG) begin
+	       clearRamOutput <= 1;
+	   end
+	   else if (clearRamOutput) begin
+	       RamOutput <= 0;
+	       clearRamOutput <= 0;
+	   end
+	   else begin
+		  RamOutput <= RamOutput + UsReturnReadRAMValue;
+	   end
+	   dig7 <= 0;
+	end
 	
 	reg			SelectRAM = 0;
 	wire [1:0]	ReturnReadRAMValue;
@@ -173,21 +192,7 @@ module nexys4_pico_if (
 	
 	
 
-	reg    clearRamOutput = 0;
 
-	always @ (posedge clk) begin
-	   if (port_id == `PA_VALID_FLAG) begin
-	       clearRamOutput <= 1;
-	   end
-	   else if (clearRamOutput) begin
-	       RamOutput <= 0;
-	       clearRamOutput <= 0;
-	   end
-	   else begin
-		  RamOutput <= RamOutput + UsReturnReadRAMValue;
-	   end
-	   dig7 <= 0;
-	end
 	
 	//reg TX_counter = 0;
 	
