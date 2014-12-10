@@ -603,17 +603,19 @@ mvmt2cc:		LOAD	s2,		SP_MVMTBASE			; s2 gets base of movment conversion table
 ;###############################################		
 			
 ; ========================================================================
-; === next_mvmt() - Determine if we stay in or transition out of the   ===
+; === next_mvmt() - Ship placement determination if we stay in or      ===
+; === transition out of the current state, and what actions to perform ===
 ; === current state                                                    ===
-; === Registers affected: Dig3, s1, s0, SP_STATE, SP_TURN, SP_ORIENT,  ===
-; === SP_OLDX, SP_OLDY                                                 ===
 ;
-; This function looks at what current state the bot is in.
+; This function looks at what current state the ship placement is in.
 ; It determines if a state-change condition has been met and updates the
 ; state appropriately. Any setup actions required upon entering a new 
 ; state are also handled here.
-; This function does not change the MtrCtrl output register,
-; that is handled in next_step based upon what state is set here.
+; This function does not send out status updates on position or location,
+; that is handled in next_step based upon what state is set here. However,
+; Placement_done is set and sent out when ship_placement is complete.
+; RAM read requests are also sent out here, with the read values to be
+; consumed on the next time through the main loop.
 ; ========================================================================				
 next_mvmt:		
 		; clear Out of Bounds first
@@ -876,8 +878,10 @@ next_mvmt_s3_skip_dec:
         RETURN
         
 ; Send out finished placing ships signal		
-next_mvmt_s4:
-        ;JUMP    the_end             ; We have completed the track, shut off processing.
+next_mvmt_s4:        
+    FETCH s0, SP_PLACE_DONE ; First check if we've already come here before and are no longer
+    COMPARE s0, TRUE        ; placing ships
+    RETURN  Z
 		
 		FETCH	s0, SP_PLAYER_NUMBER
 		COMPARE	s0, SP_PLAYER_ONE
@@ -1130,9 +1134,7 @@ DISP_X_Y:		LOAD		s0,		Cursor				; Dig[3:2] gets X-coordinate
 PLAYER_ASSIGN: 	LOAD 	s0, 	PA_SLSWTCH
  				OUTPUT 	s0, 	PA_LEDS1508
  				COMPARE s0, 	MSK_SW0
- 				;JUMP 	Z, 		SET_PLAYER_ONE
- 				;JUMP 	NZ, 	SET_PLAYER_TWO
-				JUMP 	SET_PLAYER_TWO
+				JUMP 	SET_PLAYER_ONE    ;JUMP SET_PLAYER_TWO
 				
 				
 SET_PLAYER_ONE: LOAD  s0, 	SP_PLAYER_ONE
@@ -1240,6 +1242,8 @@ RIGHT:			LOAD 	s0, 	Cursor
 SEND_GUESS:		LOAD 	s0, 	Cursor
 				LOAD 	s3, 	THEM_RAM
 				OUTPUT  s3, 	PA_RAM_SELECT
+        LOAD    s3,   RAM_EMPTY
+        OUTPUT  s3,   PA_RAM_W_VAL
 				OUTPUT 	s0, 	PA_CURSOR_CHECK		; GET THE CURRENT CURSOR POSITION
 				INPUT 	s1, 	PA_DATA_RAM	 		; GET THE DATA IN THAT RAM LOCATION
 				COMPARE s1, 	RAM_MISS 			; CHECK TO SEE IF ITS ALREADY BEEN GUESSED
@@ -1588,15 +1592,7 @@ isr:			STORE		s6,		SP_TEMP1			; 	save s6, s5
 				INPUT		valid_flag,	PA_VALID_FLAG	; space(s) are valid for ship placement
 				INPUT		But_input, PA_CONN_EST
 				CALL		DEB_rdbtns
-				OR			But_input, s0
-				;INPUT		LocX,	PA_LOCX				;		get Rojobot X-coordinate 
-				;INPUT		LocY,	PA_LOCY				;		get Rojobot Y-coordinate
-				;INPUT		Botinf,	PA_BOTINFO			;		get Rojobot Movement and Orientation
-				;INPUT		Sensor,	PA_SENSORS			;		get Rojobot Sensors
-				;INPUT		s5,		PA_LMDIST			;		get left and right motor distance counters
-				;STORE		s5,		SP_LMDIST			;		not displayed in this program but let's stash them
-				;INPUT		s5,		PA_RMDIST			;		in case we decide we need them 
-				;STORE		s5,		SP_RMDIST			;				  
+				OR			But_input, s0		  
 				ADD		s6,		01					;		increment semaphore
 				STORE		s6,		SP_SEM				;	}  // update system register values
 isr_L0:			FETCH		s6,		SP_OLDDP			;	toggle  decimal point 0 (rightmost)
