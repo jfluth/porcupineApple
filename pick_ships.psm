@@ -497,54 +497,7 @@ btn2mot:
 ; === init_mvmttbl() - initialize movement translation lookup table in SP RAM ===
 ; === Registers affected: s0, s1                                              ===
 ; ===============================================================================
-init_mvmttbl:	LOAD	s0,		SP_MVMTBASE			; s0 gets base of movement translation lookup table
-				LOAD	s1,		SP_MVMT0			; s1 gets values for 0x00								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_MVMT1			; s1 gets values for 0x01								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index				
-				LOAD	s1,		SP_MVMT2			; s1 gets values for 0x02								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_MVMT3			; s1 gets values for 0x03								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index	
-				LOAD	s1,		SP_MVMT4			; s1 gets values for 0x04								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_MVMT5			; s1 gets values for 0x05							
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index				
-				LOAD	s1,		SP_MVMT6			; s1 gets values for 0x06								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_MVMT7			; s1 gets values for 0x07								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_MVMT8			; s1 gets values for 0x08								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_MVMT9			; s1 gets values for 0x09								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index				
-				LOAD	s1,		SP_MVMTA			; s1 gets values for 0x0A								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_MVMTB			; s1 gets values for 0x0B								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index	
-				LOAD	s1,		SP_MVMTC			; s1 gets values for 0x0C								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_MVMTD			; s1 gets values for 0x0D							
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index				
-				LOAD	s1,		SP_MVMTE			; s1 gets values for 0x0E								
-				STORE	s1,		(s0)				; store the entry in the table
-				ADD	s0,		01					; increment the table index
-				LOAD	s1,		SP_MVMTF			; s1 gets values for 0x0F								
-				STORE	s1,		(s0)				; store the entry in the table
+init_mvmttbl:	
 				RETURN								; done...at last			
 				
 
@@ -1216,10 +1169,16 @@ SEND_GUESS:		LOAD 	s0, 	Cursor
         LOAD    s3,   RAM_EMPTY
         OUTPUT  s3,   PA_RAM_W_VAL
 				OUTPUT 	s0, 	PA_CURSOR_CHECK		; GET THE CURRENT CURSOR POSITION
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0
 				INPUT 	s1, 	PA_DATA_RAM	 		; GET THE DATA IN THAT RAM LOCATION
 				COMPARE s1, 	RAM_MISS 			; CHECK TO SEE IF ITS ALREADY BEEN GUESSED
 				JUMP 	Z, 		ERROR 				; LOCATION ALREADY GUESSED
-				STORE  	s0,	 	SP_GUESS 			
+				STORE  	s0,	 	SP_GUESS 		
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0				
 				OUTPUT 	s0, 	PA_DATA_TX 			; SEND THE GUESS
 				LOAD	s0,		HIS_TURN
 				OUTPUT	s0,		PA_PLACE_DONE
@@ -1229,19 +1188,33 @@ SEND_GUESS:		LOAD 	s0, 	Cursor
 				STORE 	s0, 	SP_GAME_STATE 		; UPDATE THE GAME STATE
 				RETURN
 
-RECEIVE_GUESS:	INPUT 	s0, 	PA_CONN_EST
+RECEIVE_GUESS:	LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
+				INPUT 	s0, 	PA_CONN_EST
 				AND 	s0, 	DATA_READY_MASK
 				COMPARE s0, 	DATA_READY_MASK
 				JUMP 	NZ, 	RECEIVE_GUESS
 				
 				LOAD	s0,		MY_TURN
 				OUTPUT	s0,		PA_PLACE_DONE
+				
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
 
 				INPUT 	s0, 	PA_DATA_RX 	 		; GET THE GUESS FROM THE OTHER PLAYER
 				LOAD 	s1, 	s0
 				LOAD 	s3, 	US_RAM
 				OUTPUT  s3, 	PA_RAM_SELECT
-				OUTPUT 	s1, 	PA_CURSOR_CHECK 	; SEND THE XY TO THE RAM
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
+				OUTPUT 	s0, 	PA_CURSOR_CHECK 	; SEND THE XY TO THE RAM
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0
 				INPUT 	s0, 	PA_DATA_RAM	 		; READ DATA AT THAT LOCATION
 
 				COMPARE s0, 	RAM_SHIP
@@ -1257,18 +1230,50 @@ MARK_HIT:		FETCH 	s0, 	SP_HIT_COUNT
 				JUMP 	Z, 		MARK_LOSE
         ;Mark US_RAM indicating other player's progress
         LOAD  s3, US_RAM
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
         OUTPUT  s3, PA_RAM_SELECT
-        LOAD  s3, RAM_HIT           
+        LOAD  s3, RAM_HIT          
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
         OUTPUT  s3, PA_RAM_W_VAL
-        OUTPUT  s1, PA_RAM_W_ADDR   ; s1 still contains XY of location
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0
+
+				LOAD	s0, s0
+				LOAD	s0, s0	
+				OUTPUT  s1, PA_RAM_W_ADDR   ; s1 still contains XY of location
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
+				LOAD	s4, 01
+				OUTPUT	s4, PA_DIG5
 				LOAD 	s0, 	RAM_HIT 
 				JUMP 	SEND_MARK
 
 MARK_MISS:		LOAD  s3, US_RAM  ; Mark US_RAM indicating other player's progress
         OUTPUT  s3, PA_RAM_SELECT
-        LOAD  s3, RAM_MISS           
+        LOAD  s3, RAM_MISS   
+				LOAD	s0, s0
+				LOAD	s0, s0
+
+				LOAD	s0, s0	        
         OUTPUT  s3, PA_RAM_W_VAL
-        OUTPUT  s1, PA_RAM_W_ADDR   ; s1 still contains XY of location
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
+				OUTPUT  s1, PA_RAM_W_ADDR   ; s1 still contains XY of location
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
+				LOAD	s4, 01
+				OUTPUT	s4, PA_DIG5
         LOAD 	s0, 	RAM_MISS 
 				JUMP 	SEND_MARK
 
@@ -1277,40 +1282,75 @@ MARK_LOSE: 		LOAD 	s0, 	LOSE_CODE
         LOAD  s3, US_RAM
 				JUMP 	GAME_OVER
 
-SEND_MARK: 		OUTPUT 	s0, 	PA_DATA_TX
+SEND_MARK: 		LOAD	s0, s0
+				LOAD	s0, s0
+				OUTPUT 	s0, 	PA_DATA_TX
+				LOAD	s0, s0
+				LOAD	s0, s0
+
+
+				LOAD	s0, s0	
 				LOAD 	s0, 	SP_RCVE_ACK		; UPDATE THE GAME STATE
 				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN
 
 
-RCVE_RESULT: 	INPUT 	s0, 	PA_CONN_EST
+RCVE_RESULT:	LOAD	s0, s0
+				LOAD	s0, s0
+
+				LOAD	s0, s0	
+				INPUT 	s0, 	PA_CONN_EST
 				AND 	s0, 	DATA_READY_MASK
 				COMPARE s0, 	DATA_READY_MASK
 				JUMP 	NZ, 	RCVE_RESULT
         
 				LOAD 	s3, 	THEM_RAM        ;;;; Changed from 00, this was pointing to US_RAM. Also moved up for GAME_OVER -AN
+				LOAD	s0, s0
+				LOAD	s0, s0
 
+				LOAD	s0, s0	
 				INPUT 	s0, 	PA_DATA_RX 			; READ THE RESPONSE
 				COMPARE s0, 	LOSE_CODE 			; CHECK IF END OF GAME
 				JUMP 	Z, 		GAME_OVER 			; INFINITE LOOP IF FINISHED
 
 				FETCH 	s1, 	SP_GUESS 			; GET THE RAM ADDRESS
+				LOAD	s0, s0
+
+				LOAD	s0, s0	
 				OUTPUT  s3, 	PA_RAM_SELECT
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
 				OUTPUT 	s0, 	PA_RAM_W_VAL 		; VALUE OUT TO RAM
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
 				OUTPUT 	s1, 	PA_RAM_W_ADDR 		; RAM ADDRESS
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
+				LOAD	s4, 01
+				OUTPUT	s4, PA_DIG5
 				LOAD 	s0, 	SP_SEND_ACK			; UPDATE THE GAME STATE
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN  
 
 SEND_ACK: 		LOAD 	s0, 	ACK 				; LOAD THE ACK CODE
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
 				OUTPUT 	s0, 	PA_DATA_TX			; SEND THE ACK
 				LOAD 	s0, 	SP_RECEIVING		; UPDATE THE GAME STATE
 				OUTPUT 	s0, 	PA_LEDS1508 		; -- DEBUG
 				STORE 	s0, 	SP_GAME_STATE
 				RETURN 
 
-RCVE_ACK: 		INPUT 	s0, 	PA_CONN_EST
+RCVE_ACK:		LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
+				INPUT 	s0, 	PA_CONN_EST
 				AND 	s0, 	DATA_READY_MASK
 				COMPARE s0, 	DATA_READY_MASK
 				JUMP 	NZ, 	RCVE_ACK
@@ -1337,7 +1377,15 @@ GAME_OVER: 		FETCH 	s1, 	SP_GUESS 			; GET THE RAM ADDRESS
         OUTPUT  s3,   PA_RAM_SELECT   ; s3 previously loaded with US_RAM or THEM_RAM before calling GAME_OVER
 				LOAD 	s0, 	RAM_HIT
 				OUTPUT 	s0, 	PA_RAM_W_VAL 		; VALUE OUT TO RAM
+				LOAD	s0, s0
+				LOAD	s0, s0
 				OUTPUT 	s1, 	PA_RAM_W_ADDR 		; RAM ADDRESS
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0
+				LOAD	s0, s0	
+				LOAD	s4, 01
+				OUTPUT	s4, PA_DIG5
 GAME_OVERR:		JUMP GAME_OVERR 						; INFINITE LOOP
 
 
@@ -1496,7 +1544,7 @@ SS_wrdigx_L1:	LOAD		s0,		PA_DIG0				; set base port address to PA_DIG0
 ;
 ; Registers used s0, s1, s2, s3
 ;---------------------
-SS_wrdigx_hi:	LOAD		s0,		07					; check if the number is <= 7
+SS_wrdigx_hi:	LOAD		s0,		06					; check if the number is <= 7
 				COMPARE	s0,		s2					; 
 				RETURN	C							; C=10 says s2 <= 07 - out of range so return
 				LOAD		s0,		03					; next check if the number is >= 3
