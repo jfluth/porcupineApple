@@ -126,7 +126,7 @@ module dynamic_screen(
 					screen_color <= YELLOW;
 				// paint the ship being actively placed
 				end 
-				else if (ghost_ship && ~placement_done) begin
+				else if (ghost_ship && ~placement_done[0]) begin
 					screen_color <= ship_rom_data;
 				// no special cases left, paint current occupant of the tile
 				end 
