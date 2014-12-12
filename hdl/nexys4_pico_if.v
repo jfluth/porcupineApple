@@ -220,6 +220,9 @@ module nexys4_pico_if (
 	    end else begin
 	       RX_DataLatch <= RX_DataLatch;
 	    end
+		dig2 <= {1'b0,RX_DataLatch[3:0]};
+		dig3 <= {1'b0,RX_DataLatch[7:4]};
+		dig4 <= {3'b00,UsReturnReadRAMValue};
 	 end
 	 
 	// Latch in the RX_DataReady signal, and don't let go until PicoBlaze issues the command to read the data.
@@ -337,10 +340,10 @@ module nexys4_pico_if (
             `PA_LEDS: leds[7:0] <= out_port;     //PA_LEDS  LEDs
             
             // 0x03 Digit 3 of Seven Segement display
-            `PA_DIG3: dig3 <= out_port[4:0];    //PA_DIG3  digit 3 port address (to seven seg)
+            `PA_DIG3: ;//dig3 <= out_port[4:0];    //PA_DIG3  digit 3 port address (to seven seg)
             
             // 0x04 Digit 2 of Seven Segement display
-            `PA_DIG2: dig2 <= out_port[4:0];    //PA_DIG2  digit 2 port address (to seven seg)
+            `PA_DIG2: ;//dig2 <= out_port[4:0];    //PA_DIG2  digit 2 port address (to seven seg)
             
             // 0x05 Digit 1 of Seven Segement display
             `PA_DIG1: dig1 <= out_port[4:0];    //PA_DIG1  digit 1 port address (to seven seg)
@@ -415,7 +418,7 @@ module nexys4_pico_if (
             `PA_DIG5: dig5 <= out_port[4:0];    //PA_DIG5  digit 5 port address
             
             // 0x16 Digit 4 of Seven Segement display
-            `PA_DIG4: dig4 <= out_port[4:0];    //PA_DIG4  digit 4 port address
+            `PA_DIG4: ;//dig4 <= out_port[4:0];    //PA_DIG4  digit 4 port address
             
             // 0x17 Digit 7 to 4 decimal points
             `PA_DP0704: decimal_point_upper <= out_port[3:0];    //PA_DP0704  decimal points 7:4 port address
